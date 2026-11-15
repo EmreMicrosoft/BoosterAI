@@ -3,7 +3,7 @@
 These procedures are part of BoosterAI, not calls to another skill or service. Read only the relevant section. They are adaptable reasoning instructions, not an autonomous runtime.
 
 ## Search before change
-Inspect the current entry point, owner, nearby code and existing tests. Trace one actual input to its observed effect before adding an abstraction. Search existing source and records with available host tools; no search service or network is required. If the defect cannot be reproduced, preserve the observation and label the cause unknown.
+Inspect the current entry point, owner, nearby code and existing tests. Trace one actual input to its observed effect before adding an abstraction. Search existing source and records with available host tools. At the start of a local coding task, when user and host authorization and capacity permit, dispatch one research subagent to search Stack Overflow separately for each distinct function subtopic, using privacy-safe generic queries. Attribute direct developer experiences, check dates and primary documentation, and treat advice as an unverified hypothesis. Research must not hold up independent critical-path work. Report an unavailable subagent, network, site or refusal and continue permitted independent work; the core workflow itself has no required search service. If the defect cannot be reproduced, preserve the observation and label the cause unknown.
 
 ## Evidence-led debugging
 1. Capture exact failure, environment, code revision and what already happened. Hide secrets from logs.

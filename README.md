@@ -9,6 +9,8 @@ For Codex sessions started in this checkout, the repository-local `.agents/skill
 
 The core loop is: current requirement -> smallest executable slice -> implementation -> real target observation -> evidence -> next slice. Revise only affected algorithm nodes when requirements change. Keep one critical-path executor; use helpers only for genuinely independent work.
 
+Prefer a suitable, authorized Codex CLI workflow without interrupting an existing user-selected session. For local coding work, one authorized, available subagent researches the function's distinct topics on Stack Overflow with generic privacy-safe queries; unavailable or refused delegation, network access or site access is reported without blocking independent work. Never use another interface to evade an actual refusal.
+
 ## Optional tools
 The Markdown skill needs a capable host agent. Optional helpers need Python 3.10+ and its standard library only. No other skill, pip package, external service, global installation, API key or network access is required. The product under development may have its own runtime/build/device prerequisites; BoosterAI does not bundle those environments.
 
@@ -16,6 +18,8 @@ The Markdown skill needs a capable host agent. Optional helpers need Python 3.10
 python scripts/booster.py self-check
 python scripts/booster.py workspace-init --root PROJECT --records-existing docs/status.md
 python scripts/booster.py schema-status --root PROJECT
+python scripts/project_tools.py refresh-project-index --root PROJECT
+python scripts/project_tools.py search-project-index --root PROJECT --query directory
 python scripts/booster.py validate path/to/plan.json
 python scripts/booster.py gc-plan --root PROJECT/_boosterAI --manifest scratch-manifest.json --owner RUN_OWNER
 python scripts/booster.py gc-apply --root PROJECT/_boosterAI --manifest scratch-manifest.json --owner RUN_OWNER
@@ -48,7 +52,9 @@ After every BoosterAI code or behavior-documentation change, rerun the relevant 
 Review the exact publishable files and all history reachable from the proposed refs for private project details, not just the latest snapshot. The optional offline scanner helps check supplied private terms and known commit identifiers; it cannot prove complete privacy or inspect a Git graph by itself. See `references/publication-privacy.md` before publishing.
 
 ## Functional partials
-For a coding request, BoosterAI creates or reuses the project's root `_partials/` directory and README index. It decomposes the algorithm into independently invocable functions, gives new pieces short descriptive names with unique suffixes and detailed function documentation, and requires real-target evidence before advancing. The consuming project owns any needed assembly of archived pieces and later refactoring. Existing files, legacy partials, language conventions and ownership are preserved. See references/functional-partials.md for the index contract, language precedence and optional authorized per-step GitHub backups. The helper creates only the scaffold; the host agent performs the reasoning, implementation, evidence review and any authorized backup.
+For a coding request, BoosterAI creates or reuses the project's root `_partials/` directory and README index. It also maintains a separate project-local searchable index, including existing nested partials and project experiences, without replacing the shared archive index. It decomposes the algorithm into independently invocable functions, gives new pieces short descriptive names with unique suffixes and detailed function documentation, and requires real-target evidence before advancing. The consuming project owns any needed assembly of archived pieces and later refactoring. Existing files, legacy partials, language conventions and ownership are preserved. See references/functional-partials.md for the index contract, language precedence and optional authorized per-step GitHub backups.
+
+The project index discovers both partial directories, `_boosterAI/experiences/` and helper metadata. Other existing experience files under `_boosterAI/` can be added explicitly with `--experience`. Search matches recorded paths and reports that source freshness was not checked; refresh before relying on current fingerprints. The index contains local paths and hashes and is not automatically shared.
 
 ## Project workspace
 Durable BoosterAI-owned work is kept in the using project's `_boosterAI/`, including `algorithm.md`; functional pieces and their index are in the separate root `_partials/`. Existing nested partials remain in place. An explicit user-selected temporary directory inside that project overrides the default scratch location. Existing project records stay in place; when none exist, --create-records explicitly creates minimal PROJECT_RECORDS.md at project root. Use --schema for a non-overwriting, provenance-tracked copy of an existing project-local schema. Read references/project-workspace.md before initializing or reconciling existing work. schema-status applies only when copied-schema provenance exists.
@@ -58,6 +64,8 @@ The bundled project_tools.py records general UTC checkpoint statuses inside a pr
 
 ## Successful generalized experience archive
 Archive each first verified successful experience as generalized working code with real-test evidence; improve the matching record on recurrence. Failed or code-free experiences remain local. Nested categories, tags, concise uniquely suffixed filenames and detailed function documentation make code retrievable. A CodeMeta/SoftwareSourceCode-inspired JSON Schema profile and deterministic `index.json` describe current records; prior revisions remain available. The bundled validator supports only the profile's documented subset. No archive-operation logs are written. When the owner has authorized this repository and generalized-content scope, proceed without routine reapproval. Rights, privacy and mandatory safety boundaries still apply. The helper stages locally; the host publishes and verifies the remote result. Measure costs before claiming savings. Core runtime remains offline/stdlib. See references/solution-archive.md.
+
+Related verified files, including implementations in different programming languages, can be associated many-to-many with a finite strength between 0 and 1. Local and synced archive searches show both directions. A relationship expresses reviewed relevance, not identical behavior or proof that either implementation works in another environment.
 
 An optional community contribution requires the contributor's explicit permission, an authorized GitHub link and target, rights and privacy review, and any mandatory approval. The offline `scripts/contribution_preflight_5c294f8d.py` reports missing inputs but cannot authenticate permission or create a PR. A real evaluation PR must be verified remotely; no contribution or merge is implied without one. See references/community-contributions.md.
 ## Daily archive feedback

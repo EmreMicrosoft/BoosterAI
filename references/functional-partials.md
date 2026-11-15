@@ -15,5 +15,8 @@ The project consuming verified partials or archived code owns any combination ne
 
 When requests change, revise affected nodes/contracts and mark affected partial evidence stale until retested; leave unaffected verified parts intact. Index states should distinguish PLANNED, ACTIVE, NOT_RUN, FAIL, AMBIGUOUS, VERIFIED, INTEGRATED and STALE. A function can be individually VERIFIED while integration is still NOT_RUN.
 
+Keep a distinct project-local searchable index of the using project's own partials and experiences, including the existing `_boosterAI/_partials/` when present. Preserve existing indices, source files and schemas; choose the supported location beside `_boosterAI` records without conflating it with the common `solutions/index.json`. Record only necessary project-local metadata and respect its privacy boundaries.
+
 ## Optional per-step backup
+
 Only if the user requests it and identifies/authorizes the destination and scope, back up each verified step to GitHub using the host's supported existing path. Review the diff for secrets and unrelated data; do not publish private code to a public destination without authorization. Record verified remote branch/commit readback, not just local commit or command exit. If unavailable/rejected, record BACKUP_FAILED with the actual reason and preserve local work. Continue independent authorized work unless the user's instructions make successful backup a prerequisite. No GitHub SDK, remote account or network is required for the core workflow, and the scaffold never performs a push automatically.

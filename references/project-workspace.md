@@ -13,6 +13,20 @@ Without either record option the helper scaffolds owned work but reports records
 
 The scaffold creates `_boosterAI/algorithm.md`, `_boosterAI/README.md` and the project-root `_partials/README.md` when absent, preserving existing files. Existing root-level `_partials/` is reused. If the earlier `_boosterAI/_partials/` exists, report and inspect it as a legacy location; leave its files and history in place, reference them from the project index when appropriate, and never silently move, overwrite or duplicate an implementation. Preserve an existing root index unchanged during initialization and add any cross-reference only through an authorized, deliberate update.
 
+## Project-local partial and experience index
+
+When an owner requests a separate searchable project index, run:
+
+```
+python scripts/project_tools.py refresh-project-index --root PROJECT
+python scripts/project_tools.py refresh-project-index --root PROJECT --experience _boosterAI/records/observation.md
+python scripts/project_tools.py search-project-index --root PROJECT --query legacy --kind partial
+```
+
+The first command discovers regular files in both project-root `_partials/` and legacy `_boosterAI/_partials/`, local `_boosterAI/experiences/` files, and `metadata.json` files in `_boosterAI/helpers/`. An optional repeatable `--experience` adds specific existing project-relative files under `_boosterAI/`; a previously indexed experience remains included on later refreshes. It writes a separate `_boosterAI/project-index.json`, never the human-maintained partials README, existing project records or the shared `solutions/index.json`. Each sorted entry contains only its relative path, kind, size and SHA-256, not file contents or free-form summaries. Paths and hashes can themselves be sensitive; keep this index local unless independently reviewed and authorized for sharing. No indexed code is executed, and indexing does not authenticate experience or evidence.
+
+An existing index is updated only if it matches this helper's exact recognized format; an unknown/custom index or schema is left untouched. A missing previously indexed source stops refresh instead of silently dropping a record. Symlinks, junctions, hard-linked files, special files and observed source or index changes stop the affected operation. Writers using `project_tools.py` share the project's existing lock; independent nonparticipating processes can still race these best-effort checks, so avoid concurrent external edits. If an interrupted initial creation leaves an incomplete index, preserve and reconcile it before retrying. The search reads the stored snapshot and explicitly reports that it did not check current source freshness; run refresh first when freshness matters. Neither command modifies previously existing partials or experience files.
+
 ## Existing algorithms and freshness
 To make an authorized working copy of a project-local schema, add `--schema path/to/existing.md` on initialization. The source is read only, copied byte-for-byte into `_boosterAI/algorithm.md`, and its relative path, SHA-256, modification time and copy time are recorded in `algorithm.provenance.json`. An existing algorithm or provenance prevents overwrite. Copying preserves provenance, not acceptance: inspect the source and current requirements before trusting any old done status.
 

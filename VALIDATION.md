@@ -4,10 +4,18 @@ This record describes checks on the current package. It does not include private
 
 ## Package checks
 
-- On Windows with Python 3.14, the complete standard-library suite passed 140 tests using `python -I -S -B -m unittest discover -s tests`. No third-party Python packages were needed.
+- On Windows with Python 3.14, the complete standard-library suite passed 170 tests using `python -I -S -B -m unittest discover -s tests`. No third-party Python packages were needed. The JavaScript example was also exercised with Node.js 24; Node is a target prerequisite for that example, not a BoosterAI core dependency.
 - The bundled self-check validates the repository-local registration, required files and canonical skill link. It does not prove agent discovery, agent behavior or the authenticity of a source.
 - Generalized source examples were exercised in controlled, repository-owned Python fixtures, including a real child process and a command-line search. Stored sanitized-summary digests hash the summary text and do not authenticate an observation.
 - Temporary test artifacts use an owner-selected project-local directory and are cleaned or explicitly retained when ownership or approval is unresolved.
+- The project-local index was created and searched in the actual checkout, including partials and an explicitly selected experience. A repeat refresh was deterministic and the original source files remained unchanged. Search reads a snapshot and does not independently verify its freshness.
+- A separately archived JavaScript function was run against a real authorized directory and related in both directions to a verified Python source with strength 0.65. Its immediate-child scope differs from the Python recursive search. A real Windows junction fixture verified the JavaScript link handling; this does not establish safety against every reparse type or concurrent replacement.
+- V2 compatibility, v3 weighted relationships, invalid and non-finite weights, preservation of custom metadata and revision history, deterministic rebuilding, registry/index reconciliation, and current versus historical synced-source availability have focused tests. The real published remote must still be checked after each release.
+
+## Host and research boundaries
+
+- The skill now prefers an authorized, sufficient Codex CLI workflow while preserving an active user-selected host. A previously refused separate fresh-session Codex execution remains NOT_RUN; a self-check or this host session is not a substitute for that evidence.
+- A research subagent checked distinct generic implementation topics on Stack Overflow and against primary documentation. Examples include [many-to-many relationship modeling](https://stackoverflow.com/a/63930622), [finite-number checks](https://stackoverflow.com/a/19374296), [atomic file replacement](https://stackoverflow.com/a/2333979), and [component-based path checks](https://stackoverflow.com/a/66626684). These sources are optional research, not runtime dependencies or guarantees.
 
 ## Publication and privacy
 

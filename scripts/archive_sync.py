@@ -19,7 +19,7 @@ import archive_profile as profile
 REPOSITORY='https://github.com/EmreMicrosoft/BoosterAI'
 COMMIT_URL='https://api.github.com/repos/EmreMicrosoft/BoosterAI/commits/main'
 RAW='https://raw.githubusercontent.com/EmreMicrosoft/BoosterAI/'
-MAX_INDEX=1048576
+MAX_INDEX=profile.MAX_INDEX_BYTES
 MAX_CODE=262144
 MAX_TOTAL=8388608
 
@@ -69,7 +69,7 @@ def remote_get(url,limit):
 def validate_manifest(raw):
     require(len(raw)<=MAX_INDEX,'index too large');data=json.loads(raw)
     require(isinstance(data,dict) and isinstance(data.get('entries'),list),'invalid archive manifest')
-    if data.get('format')=='boosterai-index-v2':return profile.validate_index(data)
+    if data.get('format') in ('boosterai-index-v2','boosterai-index-v3'):return profile.validate_index(data)
     require(data.get('format')=='boosterai-index-v1','invalid archive manifest')
     require(len(data['entries'])<=200,'too many archive entries')
     names=set();paths=set()
@@ -381,13 +381,25 @@ def sync(repository,force=False,fetch=remote_get,now=None,scratch=None):
 def search(repository,query='',category=None,tag=None):
     work=storage(repository);active=json.loads(safe(work,'active.json').read_text(encoding='utf-8'))
     require(isinstance(active,dict),'active pointer must be an object')
-    data=verify_snapshot(work,active['commit']);results=[]
+    data=verify_snapshot(work,active['commit']);results=[];related_by_record={}
     for entry in data['entries']:
         aliases=entry.get('categoryAliases',[])
         text=' '.join([entry['name'],entry['title'],*entry['categories'],*aliases,*entry['tags']]).lower()
         if all(w in text for w in query.lower().split()) and (not category or category in entry['categories'] or category in aliases or category=='/'.join(entry['categories'])) and (not tag or tag in entry['tags']):
-            result=dict(entry);result['local_inert_source']='snapshots/'+active['commit']+'/code/'+entry['code_sha256']+'.txt';result['untrusted']=True;results.append(result)
-    return {'commit':active['commit'],'results':results,'execution_authorized':False}
+            result=dict(entry);result['local_inert_source']='snapshots/'+active['commit']+'/code/'+entry['code_sha256']+'.txt';result['untrusted']=True
+            # A snapshot downloads only current sources. Historical relationships
+            # remain discoverable metadata, not an assertion that their bytes exist locally.
+            links=profile.related_links(data,entry) if data.get('format')=='boosterai-index-v3' else []
+            current={item['code']:item for item in data['entries']}
+            related_links=[]
+            for link in links:
+                related=dict(link);target=current.get(link['relatedFile'])
+                related['local_inert_source']=('snapshots/'+active['commit']+'/code/'+target['code_sha256']+'.txt') if target else None
+                related['untrusted']=True;related_links.append(related)
+            related_by_record[entry['name']]=related_links
+            if 'related_files' not in result:result['related_files']=related_links
+            results.append(result)
+    return {'commit':active['commit'],'results':results,'related_files_by_record':related_by_record,'execution_authorized':False}
 
 
 def rollback(repository,commit,scratch=None):

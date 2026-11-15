@@ -356,4 +356,46 @@ class ArchiveSyncTests(unittest.TestCase):
         self.assertEqual(len(found['results']),1)
         self.assertEqual((s.storage(self.root)/found['results'][0]['local_inert_source']).read_bytes(),self.code)
 
+    def test_search_reports_weighted_links_both_ways_and_historical_availability(self):
+        """Search an actual local snapshot with current and metadata-only linked files."""
+        template={**self.entry,'@context':'https://w3id.org/codemeta/4.0',
+                  '@type':'SoftwareSourceCode','format':'boosterai-source-v1',
+                  'description':'Inert source fixture','programmingLanguage':'Python',
+                  'runtimePlatform':'Python 3.10+','codeRepository':s.REPOSITORY,
+                  'codeSampleType':'full','license':'MIT','revision':2,
+                  'categories':['filesystem','search'],'categoryAliases':[],
+                  'tags':['offline'],'keywords':['offline'],'provenance':'Fixture',
+                  'publication':'Fixture only','savings_measured':False}
+        source=dict(template,name='alpha-source',title='Alpha source')
+        source['code']='solutions/filesystem/search/alpha-source/revisions/0002/'+s.profile.code_filename(source['name'],2,source['code_sha256'],'.py')
+        source['related_files']={'existing_custom_field':'preserved'}
+        historical='solutions/filesystem/search/alpha-source/revisions/0001/'+s.profile.code_filename(source['name'],1,'c'*64,'.py')
+        second_code=b'raise RuntimeError("second source must never execute")\n'
+        target=dict(template,name='beta-target',title='Beta target',revision=1,
+                    code_sha256=hashlib.sha256(second_code).hexdigest())
+        target['code']='solutions/filesystem/search/beta-target/revisions/0001/'+s.profile.code_filename(target['name'],1,target['code_sha256'],'.py')
+        relationships=sorted([
+            {'file':target['code'],'relatedFile':source['code'],'strength':0.7,'derivedFrom':True},
+            {'file':target['code'],'relatedFile':historical,'strength':0.4,'derivedFrom':False},
+        ],key=lambda item:(item['file'],item['relatedFile']))
+        manifest=s.profile.build_index([source,target],relationships)
+        def fetch(url,limit):
+            if url==s.COMMIT_URL:return json.dumps({'sha':self.commit}).encode()
+            if url.endswith('/solutions/index.json'):return json.dumps(manifest).encode()
+            if url.endswith('/'+source['code']):return self.code
+            if url.endswith('/'+target['code']):return second_code
+            raise AssertionError('unexpected fixture request')
+        self.assertEqual(s.sync(self.root,fetch=fetch,now=self.now)['status'],'UPDATED')
+        alpha_result=s.search(self.root,'alpha')
+        self.assertEqual(alpha_result['results'][0]['related_files'],{'existing_custom_field':'preserved'})
+        alpha=alpha_result['related_files_by_record']['alpha-source']
+        beta=s.search(self.root,'beta')['results'][0]['related_files']
+        self.assertEqual({(x['strength'],x['relation']) for x in alpha},{(0.7,'source-for'),(0.4,'related')})
+        self.assertEqual({(x['strength'],x['relation']) for x in beta},{(0.7,'derived-from'),(0.4,'related')})
+        current=next(x for x in beta if x['strength']==0.7)
+        historical_link=next(x for x in beta if x['strength']==0.4)
+        self.assertEqual((s.storage(self.root)/current['local_inert_source']).read_bytes(),self.code)
+        self.assertIsNone(historical_link['local_inert_source'])
+        self.assertTrue(all(x['untrusted'] for x in alpha+beta))
+
 if __name__=='__main__':unittest.main(verbosity=2)

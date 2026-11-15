@@ -453,6 +453,7 @@ class ProjectToolsTests(unittest.TestCase):
         self.assertRegex(Path(first['code']).name,r'^double-number-[0-9a-f]{8}\.py$')
         current=self.project/'solutions/numeric/double-number/metadata.json'
         original_metadata=current.read_bytes()
+        original_index=(self.project/'solutions/index.json').read_bytes()
         historical=json.loads(original_metadata);historical['legacy_private_detail']='fixture-only'
         current.write_text(json.dumps(historical),encoding='utf-8');p.rebuild_index(self.project)
         protected_index=(self.project/'solutions/index.json').read_bytes()
@@ -461,12 +462,14 @@ class ProjectToolsTests(unittest.TestCase):
         self.assertIn('unreviewed_metadata_requires_privacy_review',blocked['reasons'])
         self.assertEqual((self.project/'solutions/index.json').read_bytes(),protected_index)
         self.assertEqual(json.loads(current.read_text(encoding='utf-8'))['legacy_private_detail'],'fixture-only')
+        current.write_bytes(original_metadata);(self.project/'solutions/index.json').write_bytes(original_index)
         historical.pop('legacy_private_detail');historical['unrecognized_note']='fixture-only'
         current.write_text(json.dumps(historical),encoding='utf-8');p.rebuild_index(self.project)
         second=p.archive_example(self.project,'.solution-candidates/example.py','.solution-candidates/review.json')
         self.assertEqual(second['status'],'LOCAL_ONLY')
         self.assertIn('unreviewed_metadata_requires_privacy_review',second['reasons'])
-        current.write_bytes(original_metadata);p.rebuild_index(self.project)
+        current.write_bytes(original_metadata);(self.project/'solutions/index.json').write_bytes(original_index)
+        p.rebuild_index(self.project)
         before=(self.project/'solutions/index.json').read_bytes()
         archived=self.project/first['code'];original=archived.read_bytes();archived.write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'code missing or changed'):

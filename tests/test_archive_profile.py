@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import unittest
 
 from repo_temp import workspace
@@ -25,30 +26,61 @@ class ArchiveProfileTests(unittest.TestCase):
     def test_real_archive_profile_paths_hashes_and_function_docs(self):
         self.assertEqual(profile.validate_index(self.index), self.index)
         filenames = []
-        metadata = list((ROOT / 'solutions/filesystem').rglob('metadata.json'))
-        self.assertEqual(len(metadata), 5)  # Two current records and three preserved revisions.
+        metadata = tools.archive_metadata_files(ROOT)
+        relationships = self.index.get('relationships') if self.index['format'] == 'boosterai-index-v3' else None
+        self.assertEqual(profile.build_index(tools.current_archive_records(ROOT), relationships), self.index)
+        expected_revisions = {('find-named-directory', 1), ('find-named-directory', 2),
+                              ('owned-unittest-temp', 1)}
+        observed_revisions = set()
         for record in metadata:
             entry = json.loads(record.read_text(encoding='utf-8'))
             profile.validate_entry(entry)
             code = ROOT / entry['code']
             self.assertEqual(hashlib.sha256(code.read_bytes()).hexdigest(), entry['code_sha256'])
-            self.assertTrue(tools.python_docs_complete(code.read_text(encoding='utf-8')))
+            content = code.read_text(encoding='utf-8')
+            self.assertIn(code.suffix, profile.LANGUAGES)
+            if code.suffix == '.py':
+                self.assertTrue(tools.python_docs_complete(content), str(code))
+            elif code.suffix == '.js':
+                self.assert_js_declarations_documented(content, code)
             self.assertFalse(any(key.startswith('legacy_') for key in entry))
-            self.assertEqual(entry['evidence_basis'], 'sanitized-summary-sha256')
-            self.assertEqual(entry['evidence_sha256'], hashlib.sha256(entry['test_summary'].encode('utf-8')).hexdigest())
+            self.assertIn(entry['evidence_basis'], ('sanitized-summary-sha256', 'artifact-sha256'))
+            if entry['evidence_basis'] == 'sanitized-summary-sha256':
+                self.assertEqual(entry['evidence_sha256'], hashlib.sha256(entry['test_summary'].encode('utf-8')).hexdigest())
             if 'revisions' in record.parts:
                 filenames.append(code.name)
-                self.assertRegex(code.name, r'^[a-z0-9-]+-[0-9a-f]{8}\.py$')
-        self.assertEqual(len(filenames), 3)
+                observed_revisions.add((entry['name'], entry['revision']))
+                self.assertRegex(code.name, r'^[a-z0-9-]+-[0-9a-f]{8}' + re.escape(code.suffix) + r'$')
+        self.assertTrue(expected_revisions <= observed_revisions)
         self.assertEqual(len(filenames), len(set(filenames)))
-        previous = list((ROOT / 'solutions/filesystem').rglob('previous.json'))
-        self.assertEqual(len(previous), 1)
+        schema = json.loads((ROOT / 'solutions/archive.schema.json').read_text(encoding='utf-8'))
+        known_fields = schema['$defs']['entry']['properties']
+        for entry in self.index['entries']:
+            revision_metadata = (ROOT / entry['code']).parent / 'metadata.json'
+            historical = json.loads(revision_metadata.read_text(encoding='utf-8'))
+            self.assertEqual({key: historical.get(key) for key in known_fields},
+                             {key: entry.get(key) for key in known_fields})
+        previous = list((ROOT / 'solutions').rglob('previous.json'))
+        self.assertGreaterEqual(len(previous), 1)
         for record in previous:
             entry = json.loads(record.read_text(encoding='utf-8'))
             profile.validate_entry(entry)
             self.assertFalse(any(key.startswith('legacy_') for key in entry))
-            self.assertEqual(entry['evidence_basis'], 'sanitized-summary-sha256')
-            self.assertEqual(entry['evidence_sha256'], hashlib.sha256(entry['test_summary'].encode('utf-8')).hexdigest())
+            self.assertIn(entry['evidence_basis'], ('sanitized-summary-sha256', 'artifact-sha256'))
+            if entry['evidence_basis'] == 'sanitized-summary-sha256':
+                self.assertEqual(entry['evidence_sha256'], hashlib.sha256(entry['test_summary'].encode('utf-8')).hexdigest())
+
+    def assert_js_declarations_documented(self, content, code):
+        """Check the archive's named JS declarations, not the entire JS grammar."""
+        declarations = list(re.finditer(r'(?m)^[ \t]*(?:async[ \t]+)?function[ \t]+[A-Za-z_$][\w$]*[ \t]*\(', content))
+        self.assertTrue(declarations, str(code))
+        for declaration in declarations:
+            preceding = content[:declaration.start()].rstrip()
+            start = preceding.rfind('/**')
+            self.assertGreaterEqual(start, 0, str(code))
+            comment = preceding[start:]
+            self.assertRegex(comment, r'(?s)^/\*\*(?:(?!\*/).)*\*/$')
+            self.assertGreaterEqual(len(re.findall(r'\w+', comment)), 12, str(code))
 
     def test_schema_and_semantics_reject_invalid_records(self):
         for field, value in [('code', 'solutions/../../outside.py'), ('revision', True),
@@ -61,19 +93,22 @@ class ArchiveProfileTests(unittest.TestCase):
             profile.validate_schema({}, {'unknownConstraint': True})
 
     def test_sanitized_summary_hash_mismatch_is_rejected(self):
+        sanitized = next(i for i, entry in enumerate(self.index['entries'])
+                         if entry.get('evidence_basis') == 'sanitized-summary-sha256')
         for field, value in [('test_summary', 'A changed summary that does not match the recorded digest.'),
                              ('evidence_sha256', '0' * 64)]:
             changed = copy.deepcopy(self.index)
-            changed['entries'][0][field] = value
+            changed['entries'][sanitized][field] = value
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'summary hash mismatch'):
                 profile.validate_index(changed)
 
     def test_deterministic_index_and_nested_category(self):
         entries = list(reversed(self.index['entries']))
-        rebuilt = profile.build_index(entries)
+        relationships = self.index.get('relationships') if self.index['format'] == 'boosterai-index-v3' else None
+        rebuilt = profile.build_index(entries, relationships)
         self.assertEqual(rebuilt, self.index)
         self.assertIn(['filesystem', 'search'], rebuilt['categories'])
-        self.assertEqual(json.dumps(rebuilt, sort_keys=True), json.dumps(profile.build_index(entries), sort_keys=True))
+        self.assertEqual(json.dumps(rebuilt, sort_keys=True), json.dumps(profile.build_index(entries, relationships), sort_keys=True))
 
 
 if __name__ == '__main__':

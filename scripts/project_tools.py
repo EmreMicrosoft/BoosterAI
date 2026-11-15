@@ -384,16 +384,16 @@ def repository_root(repository):
     return base.resolve()
 
 
-def archive_search(repository, query='', category=None, tag=None):
+def archive_search(repository, query='', category=None, tag=None, include_related=True):
     """Search current archive metadata without opening or executing archived code."""
     base=repository_root(repository)
     directory=safe(base,'solutions')
-    results=[]
+    results=[];related_by_record={}
     index=safe(base,'solutions/index.json')
-    if not index.exists():return {'results':results,'savings_measured':False}
+    if not index.exists():return {'results':results,'related_files_by_record':related_by_record,'savings_measured':False}
     data=json.loads(index.read_text(encoding='utf-8'))
     require(isinstance(data,dict) and isinstance(data.get('entries'),list),'invalid archive index')
-    if data.get('format')=='boosterai-index-v2':profile.validate_index(data)
+    if data.get('format') in ('boosterai-index-v2','boosterai-index-v3'):profile.validate_index(data)
     else:require(data.get('format')=='boosterai-index-v1','unsupported archive index')
     words=query.lower().split()
     for entry in data['entries']:
@@ -401,8 +401,13 @@ def archive_search(repository, query='', category=None, tag=None):
         categories=entry.get('categories',[]);aliases=entry.get('categoryAliases',[])
         haystack=' '.join([entry.get('name',''),entry.get('title',''),*categories,*aliases,*entry.get('tags',[])]).lower()
         if all(word in haystack for word in words) and (category is None or category in categories or category in aliases or category=='/'.join(categories)) and (tag is None or tag in entry.get('tags',[])):
-            results.append(entry)
-    return {'results':results,'savings_measured':False}
+            result=dict(entry)
+            if include_related:
+                links=profile.related_links(data,entry) if data.get('format')=='boosterai-index-v3' else []
+                related_by_record[entry['name']]=links
+                if 'related_files' not in result:result['related_files']=links
+            results.append(result)
+    return {'results':results,'related_files_by_record':related_by_record,'savings_measured':False}
 
 
 def scratch_directory(base):
@@ -437,6 +442,16 @@ def verify_archive_stage_file(path, identity, content, complete):
     require(stat.S_ISREG(current.st_mode) and not (getattr(current,'st_file_attributes',0)&0x400) and current.st_nlink==1 and (current.st_dev,current.st_ino,current.st_size,current.st_mtime_ns)==(initial.st_dev,initial.st_ino,initial.st_size,initial.st_mtime_ns),'archive scratch file identity changed')
 
 
+def archive_json_bytes(data):
+    """Serialize archive JSON deterministically without non-standard numeric values."""
+    return (json.dumps(data,indent=2,sort_keys=True,ensure_ascii=False,allow_nan=False)+'\n').encode('utf-8')
+
+
+def require_archive_index_size(data):
+    """Reject an index that the bundled upstream snapshot reader could not accept."""
+    require(len(archive_json_bytes(data))<=profile.MAX_INDEX_BYTES,'archive index exceeds sync size limit')
+
+
 def atomic_archive_json(base, destination, data):
     """Replace JSON using a uniquely owned, identity-checked scratch directory.
 
@@ -444,7 +459,7 @@ def atomic_archive_json(base, destination, data):
     replaced or reparse-point contents remain in place and stop future staging.
     """
     base=repository_root(base);target=safe(base,Path(destination).relative_to(base).as_posix())
-    content=(json.dumps(data,indent=2,sort_keys=True,ensure_ascii=False)+'\n').encode('utf-8')
+    content=archive_json_bytes(data)
     scratch=scratch_directory(base)
     require(scratch.stat().st_dev==target.parent.stat().st_dev,'scratch and destination must share a filesystem')
     identity=hashlib.sha256(os.path.normcase(str(base)).encode('utf-8')).hexdigest()[:16]
@@ -499,9 +514,13 @@ def archive_metadata_files(base):
     return sorted(found)
 
 
-def current_archive_records(base):
-    """Read current records and verify their locations and code hashes without mutation."""
-    entries=[]
+def archive_records_and_files(base):
+    """Verify current and immutable revision records, including relationship endpoints.
+
+    Return the current records and the set of actual, hash-checked revision paths.
+    Syntactically plausible metadata alone never establishes that a linked file exists.
+    """
+    entries=[];files=set()
     for candidate in archive_metadata_files(base):
         relative=candidate.relative_to(base)
         path=safe(base,relative.as_posix());entry=json.loads(path.read_text(encoding='utf-8'))
@@ -509,22 +528,123 @@ def current_archive_records(base):
         current=code_path.parent.parent.parent/'metadata.json';revision=code_path.parent/'metadata.json'
         require(relative in (current,revision),'record metadata location mismatch')
         code=safe(base,entry['code']);require(code.is_file() and sha(code)==entry['code_sha256'],'archive code missing or changed')
+        if relative==revision:files.add(entry['code'])
         if relative==current:entries.append(entry)
-    return entries
+    return entries,files
+
+
+def current_archive_records(base):
+    """Return verified current archive records without mutating stored metadata."""
+    return archive_records_and_files(base)[0]
+
+
+def read_archive_relationships(base):
+    """Read only the recognized standalone relationship registry, preserving others."""
+    path=safe(base,'solutions/relationships.json')
+    if not path.exists():return None
+    def unique_object(pairs):
+        result={}
+        for key,value in pairs:
+            require(key not in result,'duplicate relationship registry field');result[key]=value
+        return result
+    try:data=json.loads(path.read_text(encoding='utf-8'),object_pairs_hook=unique_object)
+    except (UnicodeError,ValueError) as error:raise ValueError('unrecognized relationship registry; preserved') from error
+    require(isinstance(data,dict) and set(data)=={'format','relationships'}
+            and data['format']=='boosterai-relationships-v1' and isinstance(data['relationships'],list),
+            'unrecognized relationship registry; preserved')
+    schema=json.loads(profile.SCHEMA_PATH.read_text(encoding='utf-8'))
+    for link in data['relationships']:
+        profile.validate_schema(link,schema['$defs']['relationship'],schema)
+    require(data['relationships']==sorted(data['relationships'],key=lambda link:(link['file'],link['relatedFile'])),
+            'relationship registry must be sorted; preserved')
+    return data
+
+
+def require_verified_relationships(links,known_files):
+    """Reject any association whose two immutable revision files were not verified."""
+    for link in links:
+        require(link['file'] in known_files and link['relatedFile'] in known_files,
+                'relationship endpoint missing or changed')
+
+
+def checked_archive_state(base):
+    """Verify records, index and the canonical relationship registry agree before mutation."""
+    records,known_files=archive_records_and_files(base)
+    path=safe(base,'solutions/index.json');graph=read_archive_relationships(base)
+    if path.exists():
+        index=json.loads(path.read_text(encoding='utf-8'));profile.validate_index(index)
+        require(profile.build_index(records)==profile.build_index(index['entries']),
+                'archive index and records differ')
+        links=index.get('relationships',[]) if index['format']=='boosterai-index-v3' else []
+    else:
+        require(not records,'archive index missing; reconcile before writing')
+        links=[]
+    require(links==(graph['relationships'] if graph else []),
+            'relationship registry and index differ; reconcile before writing')
+    require_verified_relationships(links,known_files)
+    return records,known_files,links,graph
+
+
+def preserve_indexed_records(base,previous,entries,known_files):
+    """Reject missing, regressed or silently changed previously indexed records.
+
+    A new revision must advance by one and preserve the former current metadata in
+    its own previous.json. Additional fields on an unchanged revision are allowed;
+    existing fields must retain their values so custom metadata is not discarded.
+    """
+    current={entry['name']:entry for entry in entries}
+    for old in previous['entries']:
+        new=current.get(old['name'])
+        require(new is not None,'refusing to drop existing archive records')
+        require(new['revision']>=old['revision'],'refusing to regress an archive revision')
+        if new['revision']==old['revision']:
+            require(all(key in new and new[key]==value for key,value in old.items()),
+                    'refusing to drop or change existing archive metadata')
+        else:
+            require(new['revision']==old['revision']+1 and old['code'] in known_files,
+                    'archive revision advance is not fully preserved')
+            schema=json.loads(profile.SCHEMA_PATH.read_text(encoding='utf-8'))
+            known=set(schema['$defs']['entry']['properties'])
+            require(all(key in new and new[key]==value for key,value in old.items() if key not in known),
+                    'refusing to drop or change existing custom metadata')
+            history=safe(base,(Path(new['code']).parent/'previous.json').as_posix())
+            require(history.is_file(),'archive revision history missing')
+            require(json.loads(history.read_text(encoding='utf-8'))==old,
+                    'archive previous metadata differs from the existing index')
 
 
 def rebuild_index(base):
-    """Rebuild the deterministic index without silently dropping existing records."""
-    entries=current_archive_records(base)
+    """Rebuild the deterministic index without silently dropping records or links."""
+    entries,known_files=archive_records_and_files(base)
+    graph=read_archive_relationships(base)
     existing=safe(base,'solutions/index.json')
     if existing.exists():
         previous=json.loads(existing.read_text(encoding='utf-8'))
-        require(isinstance(previous,dict) and previous.get('format')=='boosterai-index-v2','legacy archive must be migrated first')
+        require(isinstance(previous,dict) and previous.get('format') in ('boosterai-index-v2','boosterai-index-v3'),'legacy archive must be migrated first')
         profile.validate_index(previous)
-        require({e['name'] for e in previous['entries']} <= {e['name'] for e in entries},'refusing to drop existing archive records')
-    data=profile.build_index(entries)
+        preserve_indexed_records(base,previous,entries,known_files)
+        require(previous['format']!='boosterai-index-v3' or graph is not None,
+                'relationship registry missing; index preserved')
+        def pairs(links):
+            """Map each unordered file pair to its complete reviewed relationship."""
+            return {tuple(sorted((link['file'],link['relatedFile']))):link for link in links}
+        old_links=pairs(previous.get('relationships',[]))
+        new_links=pairs(graph['relationships'] if graph else [])
+        require(all(new_links.get(pair)==link for pair,link in old_links.items()),
+                'refusing to drop or change existing archive relationships')
+    links=graph['relationships'] if graph else None
+    data=profile.build_index(entries,links)
+    require_verified_relationships(links or [],known_files)
+    require_archive_index_size(data)
     atomic_archive_json(base,existing,data)
     return data
+
+
+def refresh_archive_index(repository):
+    """Rebuild the shared index under its writer lock after inspecting any prior error."""
+    base=repository_root(repository);root=workspace(base)
+    with locked(root):data=rebuild_index(base)
+    return {'status':'UPDATED','entries':len(data['entries']),'format':data['format']}
 
 
 def python_docs_complete(content):
@@ -584,6 +704,11 @@ def archive_example(repository, source, review):
     if code_path.suffix not in profile.LANGUAGES:reasons.append('unsupported_code')
     if code_path.suffix=='.py' and not python_docs_complete(content):reasons.append('function_documentation_missing')
     if code_path.suffix!='.py' and data.get('function_docs_reviewed') is not True:reasons.append('function_documentation_review_required')
+    relationships=data.get('relationships',[])
+    if not isinstance(relationships,list) or len(relationships)>1000:
+        reasons.append('invalid_relationships');relationships=[]
+    elif any(not isinstance(link,dict) or set(link)!={'relatedFile','strength','derivedFrom'} for link in relationships):
+        reasons.append('invalid_relationships');relationships=[]
     proof=None
     try:
         proof=safe(base,data.get('evidence',''))
@@ -596,9 +721,7 @@ def archive_example(repository, source, review):
     with locked(root):
         directory=safe(base,'solutions');directory.mkdir(exist_ok=True)
         index=safe(base,'solutions/index.json')
-        if index.exists():require(json.loads(index.read_text(encoding='utf-8')).get('format')=='boosterai-index-v2','legacy archive must be migrated first')
-        existing=archive_search(base)['results']
-        require(profile.build_index(current_archive_records(base))==profile.build_index(existing),'archive index and records differ')
+        existing,known_files,old_links,graph=checked_archive_state(base)
         # Exact code repeats enrich the existing experience, never create a duplicate name.
         previous=next((entry for entry in existing if entry.get('name')==name),None)
         if previous is None:previous=next((entry for entry in existing if entry.get('code_sha256')==code_hash),None)
@@ -612,7 +735,7 @@ def archive_example(repository, source, review):
             name=previous['name'];aliases=sorted(set(previous.get('categoryAliases',[])) | (set(categories)-set(previous['categories'])))
             categories=previous['categories'];tags=sorted(set(previous.get('tags',[])+tags))
         else:tags=sorted(tags)
-        target=safe(base,'solutions/'+'/'.join(categories)+'/'+name);target.mkdir(parents=True,exist_ok=True)
+        target=safe(base,'solutions/'+'/'.join(categories)+'/'+name)
         revision=(previous.get('revision',0)+1) if previous else 1
         require(revision<=9999,'revision limit reached')
         revision_path=safe(base,target.relative_to(base).as_posix()+'/revisions/'+str(revision).zfill(4))
@@ -622,21 +745,348 @@ def archive_example(repository, source, review):
             prior_data=json.loads(safe(base,prior.relative_to(base).as_posix()).read_text(encoding='utf-8'))
             require(Path(prior_data['code']).stem.rsplit('-',1)[-1]!=new_suffix,'archive filename suffix collision')
         metadata=dict(previous or {})
-        metadata.update({'@context':'https://w3id.org/codemeta/4.0','@type':'SoftwareSourceCode','format':'boosterai-source-v1','name':name,'title':title,'description':description,'programmingLanguage':profile.LANGUAGES[code_path.suffix],'runtimePlatform':runtime,'codeRepository':'https://github.com/EmreMicrosoft/BoosterAI','codeSampleType':'full','license':license_id,'revision':revision,'categories':categories,'categoryAliases':aliases,'tags':tags,'keywords':tags,'code':code_file.relative_to(base).as_posix(),'code_sha256':code_hash,'evidence_sha256':sha(proof),'evidence_basis':'artifact-sha256','outcome':'success','test_summary':summary,'provenance':'Generalized owner-reviewed example; private source details excluded','publication':'local staged update; remote readback pending','savings_measured':False})
+        metadata.update({'@context':'https://w3id.org/codemeta/4.0','@type':'SoftwareSourceCode','format':'boosterai-source-v1','name':name,'title':title,'description':description,'programmingLanguage':profile.LANGUAGES[code_path.suffix],'runtimePlatform':runtime,'codeRepository':'https://github.com/EmreMicrosoft/BoosterAI','codeSampleType':'full','license':license_id,'revision':revision,'categories':categories,'categoryAliases':aliases,'tags':tags,'keywords':tags,'code':code_file.relative_to(base).as_posix(),'code_sha256':code_hash,'evidence_sha256':sha(proof),'evidence_basis':'artifact-sha256','outcome':'success','test_summary':summary,'provenance':'Generalized owner-reviewed example; private source details excluded','publication':'generalized example; publication requires owner authorization','savings_measured':False})
+        combined=list(old_links)
+        relation_schema=json.loads(profile.SCHEMA_PATH.read_text(encoding='utf-8'))
+        for link in relationships:
+            relation={'file':metadata['code'],'relatedFile':link['relatedFile'],
+                      'strength':link['strength'],'derivedFrom':link['derivedFrom']}
+            profile.validate_schema(relation,relation_schema['$defs']['relationship'],relation_schema)
+            require(link['relatedFile'] in known_files,'relationship endpoint missing or changed')
+            combined.append(relation)
+        combined=sorted(combined,key=lambda link:(link['file'],link['relatedFile']))
         profile.validate_entry(metadata)
+        candidate_index=profile.build_index([entry for entry in existing if entry['name']!=name]+[metadata],
+                                            combined if graph is not None or relationships else None)
+        require_archive_index_size(candidate_index)
         if contains_private_text(json.dumps(metadata,ensure_ascii=False),private_terms):
             return {'status':'LOCAL_ONLY','reasons':['possible_private_data'],'published':False}
-        revision_path.mkdir(parents=True)
-        with code_file.open('xb') as stream:stream.write(code)
-        # Immutable revisions preserve previous code and metadata; current metadata is a pointer/index.
-        with (revision_path/'metadata.json').open('x',encoding='utf-8') as stream:json.dump(metadata,stream,indent=2,sort_keys=True)
-        current=safe(base,target.relative_to(base).as_posix()+'/metadata.json')
-        if previous and current.exists():
-            history=revision_path/'previous.json'
-            with history.open('xb') as stream:stream.write(current.read_bytes())
-        atomic_archive_json(base,current,metadata)
-        rebuild_index(base)
+        try:
+            target.mkdir(parents=True,exist_ok=True)
+            revision_path.mkdir(parents=True)
+            with code_file.open('xb') as stream:stream.write(code)
+            # Immutable revisions preserve previous code and metadata; current metadata is a pointer/index.
+            with (revision_path/'metadata.json').open('x',encoding='utf-8') as stream:json.dump(metadata,stream,indent=2,sort_keys=True,allow_nan=False)
+            current=safe(base,target.relative_to(base).as_posix()+'/metadata.json')
+            if previous and current.exists():
+                history=revision_path/'previous.json'
+                with history.open('xb') as stream:stream.write(current.read_bytes())
+            atomic_archive_json(base,current,metadata)
+            if relationships:
+                atomic_archive_json(base,safe(base,'solutions/relationships.json'),
+                                    {'format':'boosterai-relationships-v1','relationships':combined})
+            rebuild_index(base)
+        except (ValueError,OSError,KeyError,TypeError) as error:
+            raise ValueError('archive files/metadata/index may have changed; reconcile before retrying: '+str(error)) from error
         return {'status':'UPDATED_EXISTING' if previous else 'READY_FOR_AUTHORIZED_PUBLICATION','path':target.relative_to(base).as_posix(),'revision':revision,'published':False}
+
+
+def link_archive_files(repository, file, related_file, strength, derived_from=False):
+    """Associate two verified revision files while preserving their source bytes.
+
+    A link is stored once in the canonical registry and returned in both directions
+    by search. The project writer lock coordinates cooperating writers; callers must
+    reconcile the registry and index if an error occurs after replacement begins.
+    """
+    base=repository_root(repository);root=workspace(base)
+    relation={'file':file,'relatedFile':related_file,'strength':strength,'derivedFrom':derived_from}
+    schema=json.loads(profile.SCHEMA_PATH.read_text(encoding='utf-8'))
+    profile.validate_schema(relation,schema['$defs']['relationship'],schema)
+    profile.archive_file_identity(file);profile.archive_file_identity(related_file)
+    require(file!=related_file,'a file cannot be related to itself')
+    with locked(root):
+        records,known_files,old_links,graph=checked_archive_state(base)
+        require(file in known_files and related_file in known_files,'relationship endpoint missing or changed')
+        pair=frozenset((file,related_file))
+        for link in old_links:
+            if frozenset((link['file'],link['relatedFile']))==pair:
+                require(link==relation,'relationship pair already has different metadata')
+                return {'status':'UNCHANGED','published':False}
+        updated=sorted([*old_links,relation],key=lambda link:(link['file'],link['relatedFile']))
+        candidate_index=profile.build_index(records,updated)
+        require_archive_index_size(candidate_index)
+        try:
+            atomic_archive_json(base,safe(base,'solutions/relationships.json'),
+                                {'format':'boosterai-relationships-v1','relationships':updated})
+            rebuild_index(base)
+        except (ValueError,OSError,KeyError,TypeError) as error:
+            raise ValueError('archive registry/index may have changed; reconcile before retrying: '+str(error)) from error
+        return {'status':'LINKED','published':False}
+
+
+PROJECT_INDEX_FORMAT = 'boosterai-project-index-v1'
+PROJECT_INDEX_PATH = '_boosterAI/project-index.json'
+PROJECT_INDEX_KINDS = ('partial', 'partial-record', 'experience')
+
+
+def project_index_path(value, kind):
+    """Validate an index path without resolving an arbitrary project reference.
+
+    Paths are project-relative POSIX strings. Partials live in one of the two
+    established locations; explicit experiences live under the project's own
+    _boosterAI directory. No source contents or free-form descriptions are kept.
+    """
+    require(isinstance(value, str) and value and '\\' not in value and ':' not in value,
+            'invalid project index path')
+    parts=value.split('/')
+    require(all(part not in ('', '.', '..') and not any(ord(ch)<32 for ch in part) for part in parts),
+            'invalid project index path')
+    require(kind in PROJECT_INDEX_KINDS, 'invalid project index kind')
+    normalized=[os.path.normcase(part) for part in parts]
+    partial=(len(parts)>1 and normalized[0]==os.path.normcase('_partials')) or (len(parts)>2 and normalized[:2]==[os.path.normcase('_boosterAI'),os.path.normcase('_partials')])
+    if kind in ('partial','partial-record'):
+        require(partial, 'partial must be in a project partials directory')
+        require((parts[-1].lower()=='readme.md')==(kind=='partial-record'), 'invalid partial record kind')
+    else:
+        require(len(parts)>1 and normalized[0]==os.path.normcase('_boosterAI') and not partial
+                and os.path.normcase(value)!=os.path.normcase(PROJECT_INDEX_PATH),
+                'experience must be a project-local _boosterAI file')
+    return value
+
+
+def project_index_identity(info):
+    """Return the identity and modification fields used for best-effort snapshots."""
+    # Windows can report different creation/change timestamps for lstat and fstat.
+    return (info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns)
+
+
+def project_index_read_file(base, relative, include_bytes=False):
+    """Hash one stable single-link file and optionally return its bounded bytes.
+
+    Check the path and the opened handle before and after reading. A change,
+    hard link, reparse point, nonregular file or oversized index fails closed.
+    This is cooperative change detection, not a defense against all OS races.
+    """
+    path=safe(base,relative);initial=path.lstat()
+    require(stat.S_ISREG(initial.st_mode) and not (getattr(initial,'st_file_attributes',0)&0x400)
+            and initial.st_nlink==1,'project index source must be an unlinked regular file')
+    if include_bytes:require(initial.st_size<=8*1024*1024,'project index exceeds size limit')
+    digest=hashlib.sha256();chunks=[];length=0
+    with path.open('rb') as stream:
+        opened=os.fstat(stream.fileno())
+        require(stat.S_ISREG(opened.st_mode) and opened.st_nlink==1
+                and project_index_identity(opened)==project_index_identity(initial),'project index source changed')
+        while True:
+            chunk=stream.read(1024*1024)
+            if not chunk:break
+            length+=len(chunk);digest.update(chunk)
+            if include_bytes:
+                require(length<=8*1024*1024,'project index exceeds size limit');chunks.append(chunk)
+        require(project_index_identity(os.fstat(stream.fileno()))==project_index_identity(initial),
+                'project index source changed')
+    current=path.lstat()
+    require(stat.S_ISREG(current.st_mode) and not (getattr(current,'st_file_attributes',0)&0x400)
+            and current.st_nlink==1 and project_index_identity(current)==project_index_identity(initial)
+            and length==initial.st_size,'project index source changed')
+    return {'size':length,'sha256':digest.hexdigest()}, (b''.join(chunks) if include_bytes else None), project_index_identity(initial)
+
+
+def project_index_walk(base, relative, only_metadata=False):
+    """Discover regular files below one known root without following links.
+
+    Reject links, special files and directory identity changes, including in
+    unselected helper children. A missing discovery root contributes no files.
+    """
+    directory=safe(base,relative)
+    try:initial=directory.lstat()
+    except FileNotFoundError:return []
+    require(stat.S_ISDIR(initial.st_mode) and not (getattr(initial,'st_file_attributes',0)&0x400),
+            'project index source root must be a directory')
+    pending=[relative];found=[]
+    while pending:
+        current_relative=pending.pop();current=safe(base,current_relative);before=current.lstat()
+        require(stat.S_ISDIR(before.st_mode) and not (getattr(before,'st_file_attributes',0)&0x400),
+                'project index directory link/reparse forbidden')
+        with os.scandir(current) as scan:items=sorted(scan,key=lambda item:item.name)
+        for item in items:
+            child_relative=current_relative+'/'+item.name
+            info=item.stat(follow_symlinks=False)
+            require(not stat.S_ISLNK(info.st_mode) and not (getattr(info,'st_file_attributes',0)&0x400),
+                    'project index link/reparse forbidden')
+            # Windows DirEntry.stat may leave device, inode and link count as zero;
+            # lstat obtains actual identity and permits hard-link detection.
+            info=safe(base,child_relative).lstat()
+            if stat.S_ISDIR(info.st_mode):pending.append(child_relative)
+            elif stat.S_ISREG(info.st_mode):
+                require(info.st_nlink==1,'project index hard link forbidden')
+                if not only_metadata or item.name=='metadata.json':found.append(child_relative)
+            else:raise ValueError('project index special file forbidden')
+        after=current.lstat()
+        require(stat.S_ISDIR(after.st_mode) and not (getattr(after,'st_file_attributes',0)&0x400)
+                and project_index_identity(before)==project_index_identity(after),
+                'project index directory changed')
+    return sorted(found)
+
+
+def project_index_entries(base, experiences):
+    """Build a sorted metadata-only view of partials and local experiences.
+
+    Explicit experience paths supplement known directories; files are hashed,
+    never imported, executed, parsed as project code, or copied to the index.
+    """
+    files={}
+    for root in ('_partials','_boosterAI/_partials'):
+        for path in project_index_walk(base,root):
+            kind='partial-record' if path.rsplit('/',1)[-1].lower()=='readme.md' else 'partial'
+            project_index_path(path,kind);files[path]=kind
+    for root,metadata_only in (('_boosterAI/experiences',False),('_boosterAI/helpers',True)):
+        for path in project_index_walk(base,root,metadata_only):
+            project_index_path(path,'experience');files[path]='experience'
+    for path in experiences:
+        project_index_path(path,'experience')
+        candidate=safe(base,path);index=safe(base,PROJECT_INDEX_PATH)
+        if candidate.exists() and index.exists():
+            require(not os.path.samefile(candidate,index),'project index cannot index itself')
+        files[path]='experience'
+    normalized=[os.path.normcase(path) for path in files]
+    require(len(normalized)==len(set(normalized)),'duplicate project index paths')
+    entries=[]
+    for path,kind in sorted(files.items()):
+        snapshot,_,_=project_index_read_file(base,path)
+        entries.append({'path':path,'kind':kind,**snapshot})
+    return entries
+
+
+def project_index_parse(content):
+    """Recognize only the exact owned index format; preserve all other records."""
+    def unique_object(pairs):
+        result={}
+        for key,value in pairs:
+            require(key not in result,'duplicate project index field');result[key]=value
+        return result
+    try:data=json.loads(content.decode('utf-8'),object_pairs_hook=unique_object)
+    except (UnicodeError,ValueError) as error:raise ValueError('unrecognized project index; preserved') from error
+    require(isinstance(data,dict) and set(data)=={'format','entries'} and data['format']==PROJECT_INDEX_FORMAT
+            and isinstance(data['entries'],list),'unrecognized project index; preserved')
+    paths=[]
+    for entry in data['entries']:
+        require(isinstance(entry,dict) and set(entry)=={'path','kind','size','sha256'},'invalid project index entry')
+        path=project_index_path(entry['path'],entry['kind']);paths.append(path)
+        require(type(entry['size']) is int and entry['size']>=0 and isinstance(entry['sha256'],str)
+                and re.fullmatch(r'[0-9a-f]{64}',entry['sha256']) is not None,'invalid project index fingerprint')
+    require(paths==sorted(paths) and len({os.path.normcase(path) for path in paths})==len(paths),
+            'project index paths must be unique and sorted')
+    return data
+
+
+def project_index_state(base):
+    """Read the existing owned index and identity or return None when absent."""
+    path=safe(base,PROJECT_INDEX_PATH)
+    try:path.lstat()
+    except FileNotFoundError:return None
+    _,content,identity=project_index_read_file(base,PROJECT_INDEX_PATH,include_bytes=True)
+    return project_index_parse(content),content,identity
+
+
+def project_index_write(base, content, previous):
+    """Create exclusively or replace an unchanged owned index under its writer lock.
+
+    Replacements use a verified uniquely owned scratch file on the same filesystem.
+    A failed first creation can leave an incomplete index, which is preserved for
+    reconciliation. Nonparticipating writers still present an unavoidable race.
+    """
+    target=safe(base,PROJECT_INDEX_PATH)
+    if previous is None:
+        fd=os.open(target,os.O_CREAT|os.O_EXCL|os.O_WRONLY|getattr(os,'O_BINARY',0))
+        try:
+            try:
+                with os.fdopen(fd,'wb') as stream:
+                    fd=None;stream.write(content);stream.flush();os.fsync(stream.fileno())
+            except OSError as error:
+                raise OSError('incomplete project index preserved at '+str(target)+': '+str(error)) from error
+        finally:
+            if fd is not None:os.close(fd)
+        _,observed,_=project_index_read_file(base,PROJECT_INDEX_PATH,include_bytes=True)
+        require(observed==content,'created project index changed; reconcile it before retrying')
+        return
+    scratch=scratch_directory(base)
+    require(scratch.stat().st_dev==target.parent.stat().st_dev,'scratch and project index must share a filesystem')
+    identifier=hashlib.sha256(os.path.normcase(str(base)).encode('utf-8')).hexdigest()[:16]
+    prefix='.project-index-op-'+identifier+'-'
+    require(not any(path.name.startswith(prefix) for path in scratch.iterdir()),'unreconciled project index scratch preserved')
+    operation=safe(scratch,prefix+uuid.uuid4().hex);stage=operation/'index.json'
+    directory_info=None;file_info=None;complete=False
+    try:
+        operation.mkdir()
+        try:directory_info=operation.lstat()
+        except OSError as error:
+            raise OSError('project index scratch directory retained at '+str(operation)+': '+str(error)) from error
+        require(stat.S_ISDIR(directory_info.st_mode) and not (getattr(directory_info,'st_file_attributes',0)&0x400),
+                'project index scratch directory link/reparse forbidden')
+        fd=os.open(stage,os.O_CREAT|os.O_EXCL|os.O_WRONLY|getattr(os,'O_BINARY',0))
+        try:
+            file_info=os.fstat(fd)
+            with os.fdopen(fd,'wb') as stream:
+                fd=None;stream.write(content);stream.flush();os.fsync(stream.fileno())
+            complete=True
+        finally:
+            if fd is not None:os.close(fd)
+        current=operation.lstat()
+        require(stat.S_ISDIR(current.st_mode) and not (getattr(current,'st_file_attributes',0)&0x400)
+                and (current.st_dev,current.st_ino)==(directory_info.st_dev,directory_info.st_ino),
+                'project index scratch directory changed')
+        verify_archive_stage_file(stage,file_info,content,True)
+        require(project_index_state(base)==previous,'project index changed during refresh; preserved')
+        target=safe(base,PROJECT_INDEX_PATH)
+        os.replace(stage,target)
+        installed=project_index_state(base)
+        require(installed is not None and installed[1]==content,'installed project index changed; reconcile it before retrying')
+    finally:
+        if directory_info is not None:
+            current=operation.lstat()
+            require(stat.S_ISDIR(current.st_mode) and not (getattr(current,'st_file_attributes',0)&0x400)
+                    and (current.st_dev,current.st_ino)==(directory_info.st_dev,directory_info.st_ino),
+                    'project index scratch directory changed')
+            try:stage.lstat()
+            except FileNotFoundError:pass
+            else:
+                verify_archive_stage_file(stage,file_info,content,complete);stage.unlink()
+            operation.rmdir()
+
+
+def refresh_project_index(project, experiences=()):
+    """Refresh a separate project-only index while preserving existing records.
+
+    Include established partials, local experience roots and explicitly named
+    project-local files. Refuse missing previously indexed paths, foreign index
+    formats, concurrent cooperating writers and observed changes during scanning.
+    """
+    require(isinstance(experiences,(list,tuple)) and all(isinstance(path,str) for path in experiences),
+            'experiences must be a list of paths')
+    base=repository_root(project);root=workspace(base)
+    with locked(root):
+        previous=project_index_state(base)
+        old_entries=previous[0]['entries'] if previous else []
+        retained=[entry['path'] for entry in old_entries if entry['kind']=='experience']
+        paths=sorted(set([*experiences,*retained]))
+        entries=project_index_entries(base,paths)
+        require(entries==project_index_entries(base,paths),'project index sources changed during refresh')
+        old_paths={entry['path']:entry['kind'] for entry in old_entries}
+        new_paths={entry['path']:entry['kind'] for entry in entries}
+        require(all(new_paths.get(path)==kind for path,kind in old_paths.items()),
+                'refusing to drop previously indexed project records')
+        data={'format':PROJECT_INDEX_FORMAT,'entries':entries}
+        content=(json.dumps(data,indent=2,sort_keys=True,ensure_ascii=False)+'\n').encode('utf-8')
+        require(len(content)<=8*1024*1024,'project index exceeds size limit')
+        if previous is not None and previous[1]==content:
+            require(project_index_state(base)==previous,'project index changed during refresh; preserved')
+            status='UNCHANGED'
+        else:
+            project_index_write(base,content,previous);status='UPDATED' if previous else 'CREATED'
+    return {'status':status,'index':PROJECT_INDEX_PATH,'entries':len(entries)}
+
+
+def search_project_index(project, query='', kind=None):
+    """Search stored local paths without executing sources or asserting freshness."""
+    require(isinstance(query,str) and len(query)<=1000,'invalid project index query')
+    require(kind is None or kind in PROJECT_INDEX_KINDS,'invalid project index kind')
+    base=repository_root(project);state=project_index_state(base)
+    require(state is not None,'project index missing; refresh it first')
+    words=query.casefold().split()
+    entries=[entry for entry in state[0]['entries']
+             if (kind is None or kind==entry['kind']) and all(word in entry['path'].casefold() for word in words)]
+    return {'format':PROJECT_INDEX_FORMAT,'entries':entries,'source_freshness_checked':False}
+
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -646,6 +1096,10 @@ def main():
     check=sub.add_parser('check-helper');check.add_argument('--root',required=True);check.add_argument('--name',required=True);check.add_argument('--version',required=True)
     archive=sub.add_parser('archive-example');archive.add_argument('--root',required=True);archive.add_argument('--source',required=True);archive.add_argument('--review',required=True)
     search=sub.add_parser('search-archive');search.add_argument('--root',required=True);search.add_argument('--query',default='');search.add_argument('--category');search.add_argument('--tag')
+    link=sub.add_parser('link-archive-files');link.add_argument('--root',required=True);link.add_argument('--file',required=True);link.add_argument('--related-file',required=True);link.add_argument('--strength',required=True,type=float);link.add_argument('--derived-from',action='store_true')
+    sub.add_parser('rebuild-archive-index').add_argument('--root',required=True)
+    local_refresh=sub.add_parser('refresh-project-index');local_refresh.add_argument('--root',required=True);local_refresh.add_argument('--experience',action='append',default=[])
+    local_search=sub.add_parser('search-project-index');local_search.add_argument('--root',required=True);local_search.add_argument('--query',default='');local_search.add_argument('--kind',choices=PROJECT_INDEX_KINDS)
     sub.add_parser('plan-log-deletion').add_argument('--root',required=True)
     purge=sub.add_parser('purge-logs');purge.add_argument('--root',required=True);purge.add_argument('--plan',required=True);purge.add_argument('--approval')
     args=parser.parse_args()
@@ -658,6 +1112,10 @@ def main():
             result=purge_logs(args.root,plan,approval)
         elif args.command=='search-archive':result=archive_search(args.root,args.query,args.category,args.tag)
         elif args.command=='archive-example':result=archive_example(args.root,args.source,args.review)
+        elif args.command=='link-archive-files':result=link_archive_files(args.root,args.file,args.related_file,args.strength,args.derived_from)
+        elif args.command=='rebuild-archive-index':result=refresh_archive_index(args.root)
+        elif args.command=='refresh-project-index':result=refresh_project_index(args.root,args.experience)
+        elif args.command=='search-project-index':result=search_project_index(args.root,args.query,args.kind)
         elif args.command=='log':result=log_event(args.root,args.summary,args.status,args.evidence)
         elif args.command=='register-helper':result=register_helper(args.root,args.name,args.version,args.source,args.evidence,args.target,args.source_scope,args.function_docs_reviewed)
         else:result=helper_check(args.root,args.name,args.version)
