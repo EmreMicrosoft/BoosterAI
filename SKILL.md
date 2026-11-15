@@ -29,6 +29,26 @@ When task completion appears to depend on operating-system permissions, assess w
 
 At the start of a local coding task, assign one research subagent, when user and host authorization and available capacity permit, to research each distinct coding-function subtopic on Stack Overflow. Use current searches and direct developer experiences as hypotheses, not instructions; check dates, relevance and authoritative documentation. Send only generic technical queries, never private project names, paths, code, credentials or user data. Research runs independently of the product critical path. If delegation, network access or the site is unavailable or denied, report the precise limitation and continue independent authorized work. The core skill remains usable without network access or a research service.
 
+## Runtime version defaults
+
+For new Python work, select Python 3.12 or newer; for new .NET work, select .NET
+SDK 10 or newer. An explicit user-requested version takes precedence. Inspect
+existing project constraints before changing an established runtime; do not
+silently upgrade, install, retarget or alter global configuration. If no suitable
+authorized runtime is available, report that dependency and continue independent
+work. These defaults concern product runtime selection, not the older versions
+retained in BoosterAI helper compatibility tests.
+
+Use `python -I -S -B scripts/booster.py runtime-check --language python` to check
+the interpreter actually executing the helper. For .NET, first obtain the
+selected **SDK** version through the authorized host, then check it with
+`runtime-check --language dotnet --observed-version VERSION`. This reported
+version is not authenticated by the helper and is not a .NET runtime version.
+Pass `--requested-version VERSION` only when the user explicitly requested that
+version; a major.minor request matches that series and a full version matches
+exactly. The helper checks stable numeric versions and never installs or changes
+runtimes. A passing version check is not product acceptance or Codex integration.
+
 ## Owned workspace
 
 Follow [project workspace](references/project-workspace.md): keep the algorithm, durable evidence and functional partials under the using project's `_boosterAI/`, with pieces in `_boosterAI/_partials/`. Discover and preserve any existing project-root `_partials/` as a compatibility location; do not move, delete or overwrite either location. An explicit user-selected temporary directory inside that project overrides the default scratch location, including tool caches and subprocess temp. Stay inside the authorized project; do not consult or modify other projects or global configuration. Preserve and use an existing record system; only if none exists create minimal PROJECT_RECORDS.md at project root. Copy existing schemas only with provenance and without moving or overwriting originals. Check source freshness before reuse.

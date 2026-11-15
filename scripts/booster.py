@@ -415,10 +415,50 @@ def self_check(root):
             'canonical_source_sha256': digest(canonical), 'registration_target_sha256': target_hash,
             'codex_repo_registration': registration_status, 'agent_discovery_verified': False}
 
+def runtime_check(language, observed_version=None, requested_version=None):
+    """Check one observed runtime against defaults or an explicit user request.
+
+    This selects no executable and installs nothing. Python defaults to this
+    process's actual interpreter; externally reported SDK/runtime versions are
+    labelled unverified observations. An override is a caller declaration of a
+    user's explicit request, never authorization inferred from installed tools.
+    Existing helper compatibility and CI matrices are unchanged.
+    """
+    require(language in ('python', 'dotnet'), 'language must be python or dotnet')
+    source = 'caller_reported'
+    if observed_version is None:
+        require(language == 'python', 'dotnet requires an observed SDK version, not a runtime version')
+        require(sys.version_info.releaselevel == 'final', 'current Python interpreter must be a stable release')
+        observed_version = '.'.join(str(n) for n in sys.version_info[:3])
+        source = 'current_python_process'
+    def version(value):
+        require(isinstance(value, str) and re.fullmatch(r'(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?', value) is not None,
+                'version must be a stable numeric major.minor or major.minor.patch')
+        return tuple(int(n) for n in value.split('.'))
+    observed = version(observed_version)
+    minimum = (3, 12) if language == 'python' else (10, 0)
+    if requested_version is not None:
+        requested = version(requested_version)
+        valid = observed[:len(requested)] == requested
+        policy = 'explicit_user_version_request'
+    else:
+        valid = observed >= minimum
+        policy = 'default_minimum'
+    return {'valid': valid, 'language': language, 'observed_version': observed_version,
+            'observation_source': source, 'environment_verified': source == 'current_python_process',
+            'default_minimum': '.'.join(str(n) for n in minimum),
+            'requested_version': requested_version, 'policy': policy,
+            'runtime_changed': False, 'product_acceptance_verified': False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('validate').add_argument('plan')
+    runtime = sub.add_parser('runtime-check')
+    runtime.add_argument('--language', choices=('python', 'dotnet'), required=True)
+    runtime.add_argument('--observed-version')
+    runtime.add_argument('--requested-version', help='Only for the user\'s explicit version request')
     sub.add_parser('partials-init').add_argument('--root', required=True)
     sub.add_parser('schema-status').add_argument('--root', required=True)
     workspace = sub.add_parser('workspace-init')
@@ -434,7 +474,9 @@ def main():
         child.add_argument('--owner', required=True)
     args = parser.parse_args()
     try:
-        if args.command == 'schema-status':
+        if args.command == 'runtime-check':
+            result = runtime_check(args.language, args.observed_version, args.requested_version)
+        elif args.command == 'schema-status':
             result = schema_status(args.root)
         elif args.command == 'workspace-init':
             result = workspace_init(args.root, args.records_existing, args.create_records, args.schema)
@@ -448,7 +490,7 @@ def main():
         else:
             result = collect(args.root, args.manifest, args.owner, args.command == 'gc-apply')
         print(json.dumps(result, indent=2))
-        return 0
+        return 1 if args.command == 'runtime-check' and not result['valid'] else 0
     except (ValueError, OSError, KeyError, TypeError) as error:
         result = {'error': str(error)}
         if args.command == 'gc-apply':

@@ -159,3 +159,25 @@ passed on Python 3.12 and 3.14 (3 each), failed-prerequisite regressions passed
 (12), and the Windows Python 3.14 selected suite passed 369 tests. Exclusions
 remain 14 cases and 3 candidate modules. This is current code/rule regression
 coverage, not a fresh host pilot; older acceptance fingerprints remain STALE.
+
+### Product runtime defaults and read-only version check
+
+The skill now defaults new Python work to stable Python 3.12+ and new .NET work
+to SDK 10+, while an explicit user-requested version overrides those defaults.
+Existing projects are not silently retargeted and older helper compatibility/CI
+versions remain supported. `booster.py runtime-check` checks the actual Python
+process by default; supplied versions (including .NET SDK observations) are
+labelled caller-reported, not environment-verified. No runtime is installed or
+changed. Non-final current Python interpreters and preview version strings are
+rejected by this stable-version checker.
+
+Actual CLI checks observed Windows Python 3.12.0 and 3.14.0 and passed. Separate
+reported-version CLI fixtures demonstrated exit 1 below the default and exit 0
+for a matching explicit request. Six focused tests passed on Python 3.12/3.14;
+independent review caught a prerelease-identification defect before publication,
+which was fixed and covered. Governing policy fingerprint tests passed and the
+selected Windows Python 3.14 suite passed 375 tests. Fourteen cases and three
+candidate modules remain excluded. Actual .NET SDK discovery/selection and
+Codex host invocation are NOT_RUN; this checker does not enforce host runtime
+selection or prove product acceptance. The changed skill invalidates old harness
+fingerprints; no fresh host pilot is claimed.
