@@ -18,6 +18,38 @@ tools = importlib.util.module_from_spec(tools_spec)
 tools_spec.loader.exec_module(tools)
 
 
+class JsonEqualityTests(unittest.TestCase):
+    """Exercise the public validator without filesystem fixtures or mock results."""
+
+    def test_const_and_enum_distinguish_booleans_recursively(self):
+        for actual, expected in [(True, 1), (False, 0), ([True], [1]),
+                                 ({'a': [False]}, {'a': [0]})]:
+            for schema in ({'const': expected}, {'enum': [expected]}):
+                with self.subTest(actual=actual, schema=schema):
+                    with self.assertRaises(ValueError):
+                        profile.validate_schema(actual, schema)
+
+    def test_const_and_enum_keep_json_numeric_and_structural_equality(self):
+        for actual, expected in [(1, 1.0), (-0.0, 0), (True, True),
+                                 (None, None), ('1', '1'),
+                                 ({'b': [1], 'a': None}, {'a': None, 'b': [1.0]})]:
+            for schema in ({'const': expected}, {'enum': [expected]}):
+                with self.subTest(actual=actual, schema=schema):
+                    profile.validate_schema(actual, schema)
+
+    def test_unique_items_rejects_equivalent_numbers_and_nested_objects(self):
+        for values in [[1, 1.0], [0, -0.0], [[1], [1.0]],
+                       [{'a': 1, 'b': [False]}, {'b': [False], 'a': 1.0}]]:
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                profile.validate_schema(values, {'uniqueItems': True})
+
+    def test_unique_items_preserves_boolean_types_and_array_order(self):
+        for values in [[True, 1], [False, 0], [[True], [1]],
+                       [[1, 2], [2, 1]], [None, False, 0, '0']]:
+            with self.subTest(values=values):
+                profile.validate_schema(values, {'uniqueItems': True})
+
+
 class ArchiveProfileTests(unittest.TestCase):
     def setUp(self):
         self.root = workspace(self)

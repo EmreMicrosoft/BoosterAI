@@ -11,6 +11,32 @@ class UnsupportedSchemaError(ValueError):
     """Identify unsupported profile constructs even inside schema alternatives."""
 
 
+def _json_equality_key(value):
+    """Return a hashable JSON equality key for constants, options and uniqueness.
+
+    Booleans are distinct from numbers, while equal integer/float values share a
+    key. Object order is ignored and array order is retained recursively. Reject
+    non-JSON values and non-finite numbers rather than letting Python equality
+    silently broaden the supported JSON Schema contract.
+    """
+    if value is None:
+        return ('null',)
+    if isinstance(value, bool):
+        return ('boolean', value)
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError('non-finite JSON number')
+        return ('number', value)
+    if isinstance(value, str):
+        return ('string', value)
+    if isinstance(value, list):
+        return ('array', tuple(_json_equality_key(item) for item in value))
+    if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        return ('object', frozenset((key, _json_equality_key(item))
+                                    for key, item in value.items()))
+    raise ValueError('unsupported JSON value')
+
+
 def validate_schema(value, schema, document=None, location='$'):
     """Check a value against the bundled profile subset; reject unsupported schema keywords.
 
@@ -58,9 +84,10 @@ def validate_schema(value, schema, document=None, location='$'):
              'boolean': lambda v: isinstance(v, bool)}
     if kind is not None and (kind not in types or not types[kind](value)):
         raise ValueError('invalid type at ' + location)
-    if 'const' in schema and value != schema['const']:
+    if 'const' in schema and _json_equality_key(value) != _json_equality_key(schema['const']):
         raise ValueError('invalid constant at ' + location)
-    if 'enum' in schema and value not in schema['enum']:
+    if 'enum' in schema and _json_equality_key(value) not in {
+            _json_equality_key(option) for option in schema['enum']}:
         raise ValueError('invalid option at ' + location)
     if isinstance(value, dict):
         for key in schema.get('required', []):
@@ -75,7 +102,7 @@ def validate_schema(value, schema, document=None, location='$'):
     if isinstance(value, list):
         if len(value) < schema.get('minItems', 0) or len(value) > schema.get('maxItems', float('inf')):
             raise ValueError('invalid array length at ' + location)
-        if schema.get('uniqueItems') and len({json.dumps(v, sort_keys=True) for v in value}) != len(value):
+        if schema.get('uniqueItems') and len({_json_equality_key(v) for v in value}) != len(value):
             raise ValueError('duplicate array item at ' + location)
         if 'items' in schema:
             for index, item in enumerate(value):
