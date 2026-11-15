@@ -1,0 +1,15 @@
+# Publication privacy review
+
+Before publication, inspect the proposed public file list and its contents for private project terms, personal paths, credential-shaped text and references to old Git commits. The bundled offline scanner accepts a JSON object on stdin with exactly `files`, `private_terms` and `old_commits` arrays:
+
+```
+python -I -S -B scripts/publication_scan_91c4e6b2.py --root PROJECT < MANIFEST.json
+```
+
+`files` must be a nonempty list of project-root-relative UTF-8 files to scan. `private_terms` is a caller-supplied list of sensitive names or terms; none is hardcoded. `old_commits` is a caller-supplied list of full 40-hex prior Git commit IDs. Both lists may be empty when explicitly supplied; the reviewer must judge whether they are complete. Supply private input through stdin or an authorized temporary location and keep it out of public files and logs. The scanner does not run Git, inspect other projects, access the network, execute listed files, or write a report.
+
+The scanner checks listed filenames and contents case-insensitively for private terms. It also flags common credential and personal absolute-path patterns and standalone references matching the first 7–40 hex digits of a supplied old commit. Contiguous 64-hex SHA-256 values are not treated as shortened Git commit IDs. Input paths must stay beneath the selected root and refer to regular single-link files; links, junctions, reparse points and escapes are rejected. Missing files, unsupported encoding, oversize input, invalid IDs and access denials fail closed. A finding reports only its zero-based file index and category, never the private value or path; use the input list locally to inspect it. The result includes counts of supplied terms and commit IDs, not their values. An exit code of 1 means findings; 2 means an error.
+
+`NO_MATCH_REVIEW_REQUIRED` means only that these specified checks found nothing in these specified files. It does not prove privacy, source rights, the completeness of the file list or private-term list, and it does not detect every secret or project-specific clue. Review the entire intended public tree and any non-text artifacts independently before publishing. The scanner checks containment and file identity but is not an OS sandbox against hostile concurrent filesystem replacement.
+
+When a clean Git history is required, separately construct and verify the actual commit graph and remote refs using supported Git and host tools. A clean file scan does not establish that the Git commit is parentless, that no old branches or tags were pushed, or that the remote repository contains no previous commits. Do not rewrite history, publish or delete anything unless the actual owner has authorized that exact scope and all applicable safety and action-time approval boundaries are satisfied.

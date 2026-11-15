@@ -1,0 +1,64 @@
+# BoosterAI
+
+A portable instruction skill for incremental, evidence-driven software delivery. It reduces coordination overhead without pretending that more agents, a green build, or a status file constitute working software.
+
+## Use
+Read `SKILL.md` in your coding agent and explicitly ask it to apply BoosterAI to your authorized project. The package uses ordinary Markdown and optional Python standard-library tooling. Agent-specific installation and skill discovery differ; placing this repository on disk does **not** prove that an agent discovers or follows it. No hooks, global configuration, schedulers or other projects are changed by this package.
+
+For Codex sessions started in this checkout, the repository-local `.agents/skills/booster-ai/SKILL.md` registers `booster-ai` and points to the single canonical root `SKILL.md`. Open or refresh a Codex session in this repository, then invoke `$booster-ai`. This registration is scoped to the checkout; it does not install a user-wide skill. The bundled self-check reports the Python version and hashes of the local canonical source and registration target; matching hashes verify their local relationship, not independent authenticity. Compare a trusted remote revision separately. Actual Codex discovery and a task run must also be verified separately.
+
+The core loop is: current requirement -> smallest executable slice -> implementation -> real target observation -> evidence -> next slice. Revise only affected algorithm nodes when requirements change. Keep one critical-path executor; use helpers only for genuinely independent work.
+
+## Optional tools
+The Markdown skill needs a capable host agent. Optional helpers need Python 3.10+ and its standard library only. No other skill, pip package, external service, global installation, API key or network access is required. The product under development may have its own runtime/build/device prerequisites; BoosterAI does not bundle those environments.
+
+```text
+python scripts/booster.py self-check
+python scripts/booster.py workspace-init --root PROJECT --records-existing docs/status.md
+python scripts/booster.py schema-status --root PROJECT
+python scripts/booster.py validate path/to/plan.json
+python scripts/booster.py gc-plan --root PROJECT/_boosterAI --manifest scratch-manifest.json --owner RUN_OWNER
+python scripts/booster.py gc-apply --root PROJECT/_boosterAI --manifest scratch-manifest.json --owner RUN_OWNER
+python -I -S -B scripts/find_directory.py --name SampleFolder --root .
+python -I -S -B -m unittest discover -s tests -v
+```
+
+See `references/operating-algorithm.md` for the plan contract and `references/owned-cleanup.md` for the owned-scratch manifest. Validation checks metadata, not the truth of evidence. The collector quarantines manifest-owned expired inactive files, never purges. Stop writers first: this is not a distributed locking service. Tests use unique directories under this repository's ignored `_temp-files/`, redirect Python and child-process temporary files there, and register cleanup before setup can fail. Successful and failed test runs remove their own fixtures.
+
+`find_directory.py` searches for an exact folder name without case sensitivity and does not follow symbolic links or junctions. Specify each authorized `--root` explicitly; on Windows, `--all-local-drives` selects local drives with assigned letters and requires authorization for that scope. Network drives, unrecognized drive types and mount points behind links are not searched. The JSON result includes matches, access errors, skipped links and a `complete` flag. Exit status is 0 for a complete search with matches, 1 for a complete search with no matches, 2 for an incomplete or invalid search, and 130 if interrupted. A skipped link or inaccessible directory makes the result incomplete: absence cannot then be established. This is not a sandbox against concurrent changes to filesystem links.
+
+## Guarantees and boundaries
+Routine authorized engineering decisions do not need repeated approval. This skill cannot waive host permissions, mandatory confirmations, actual service denials or a user's stop. Missing prerequisites must be distinguished from denials. A missing skill cannot report its own absence; the invoking host must detect that condition. Continuous execution requires an available agent/runtime and any separately authorized scheduling; no perpetual daemon is included.
+
+Build checks, fixture tests, helper runtime tests, behavioral evaluations and real product acceptance are reported separately. This package's own tests do not prove improved speed or success in every project. Scratch cleanup is recoverable and bounded, not universal garbage collection. Daily logs use a separate exact-batch permanent-deletion path requiring fresh action-time confirmation. No private records or account data belong in this public repository.
+
+## Self-contained operation
+The bundled engineering procedures cover source inspection, debugging, implementation, review, verification, task division and dynamic planning. Source links document design history only; they are not fetched at runtime. Use the bundled self-check instead of any external skill validator. It checks this package's narrow frontmatter and local-resource contract, not general YAML or agent discovery. Python itself and a tool-capable agent remain explicit prerequisites, so this is not a standalone operating system or autonomous service.
+
+## Development
+Keep the skill concise. Add a regression scenario for each demonstrated failure. First run the helper tests, then evaluate the instructions on a fresh realistic task using an independent agent. Preserve failed/blocked results, and do not represent a simulated target as real product verification. Changes to the algorithm must invalidate affected stale acceptance evidence.
+
+## BoosterAI repository maintenance
+Maintain BoosterAI within its own working directory, without depending on other local projects or working directories. The only GitHub repository used for this maintenance is [EmreMicrosoft/BoosterAI](https://github.com/EmreMicrosoft/BoosterAI). In every work turn, use the owner's messages to identify and implement the applicable scoped improvements to the skill and its repository. Do not invent unrelated changes or create empty commits when a message requires no product change.
+
+Apply BoosterAI itself during maintenance and follow `AGENTS.md`. All maintenance work stays inside this checkout. Store every temporary file, cache, download and staging artifact in `_temp-files/`; configure process-local temp paths before execution. Check that directory before and after each turn, clean known disposable artifacts on success and failure, and reconcile interrupted work before creating more scratch. Preserve required evidence in `_boosterAI/` and summarize validation here in `VALIDATION.md`. Unknown or active files are preserved and reported, never silently deleted. No global configuration, external project or background cleaner is involved.
+
+After every BoosterAI code or behavior-documentation change, rerun the relevant tests, review the public diff for private data, and update the public BoosterAI GitHub repository on its main branch. Verify the remote commit before reporting it published. If publishing is blocked, report the blocker and keep the validated local changes; never claim synchronization without verification. This instruction applies to maintaining BoosterAI itself, not to projects that use the skill.
+
+Review the exact publishable files and all history reachable from the proposed refs for private project details, not just the latest snapshot. The optional offline scanner helps check supplied private terms and known commit identifiers; it cannot prove complete privacy or inspect a Git graph by itself. See `references/publication-privacy.md` before publishing.
+
+## Functional partials
+For a coding request, BoosterAI creates or reuses the project's root `_partials/` directory and README index. It decomposes the algorithm into independently invocable functions, gives new pieces short descriptive names with unique suffixes and detailed function documentation, and requires real-target evidence before advancing. The consuming project owns any needed assembly of archived pieces and later refactoring. Existing files, legacy partials, language conventions and ownership are preserved. See references/functional-partials.md for the index contract, language precedence and optional authorized per-step GitHub backups. The helper creates only the scaffold; the host agent performs the reasoning, implementation, evidence review and any authorized backup.
+
+## Project workspace
+Durable BoosterAI-owned work is kept in the using project's `_boosterAI/`, including `algorithm.md`; functional pieces and their index are in the separate root `_partials/`. Existing nested partials remain in place. An explicit user-selected temporary directory inside that project overrides the default scratch location. Existing project records stay in place; when none exist, --create-records explicitly creates minimal PROJECT_RECORDS.md at project root. Use --schema for a non-overwriting, provenance-tracked copy of an existing project-local schema. Read references/project-workspace.md before initializing or reconciling existing work. schema-status applies only when copied-schema provenance exists.
+
+## Logs and reusable helpers
+The bundled project_tools.py records general UTC checkpoint statuses inside a project's `_boosterAI/`, excluding product details and archive transactions. At each invocation it plans exact owned log deletion beyond a strict rolling seven days. Actual permanent deletion requires fresh confirmation of that batch; without approval it explicitly leaves logs in place, with no quarantine fallback. It is not a daemon and cannot promise unattended permanent cleanup. It also registers immutable, versioned copies of project-specific tested helper code and checks code/evidence integrity before reuse. See references/logs-and-helpers.md for commands, privacy boundaries, concurrency preconditions and recovery limits.
+
+## Successful generalized experience archive
+Archive each first verified successful experience as generalized working code with real-test evidence; improve the matching record on recurrence. Failed or code-free experiences remain local. Nested categories, tags, concise uniquely suffixed filenames and detailed function documentation make code retrievable. A CodeMeta/SoftwareSourceCode-inspired JSON Schema profile and deterministic `index.json` describe current records; prior revisions remain available. The bundled validator supports only the profile's documented subset. No archive-operation logs are written. When the owner has authorized this repository and generalized-content scope, proceed without routine reapproval. Rights, privacy and mandatory safety boundaries still apply. The helper stages locally; the host publishes and verifies the remote result. Measure costs before claiming savings. Core runtime remains offline/stdlib. See references/solution-archive.md.
+
+An optional community contribution requires the contributor's explicit permission, an authorized GitHub link and target, rights and privacy review, and any mandatory approval. The offline `scripts/contribution_preflight_5c294f8d.py` reports missing inputs but cannot authenticate permission or create a PR. A real evaluation PR must be verified remotely; no contribution or merge is implied without one. See references/community-contributions.md.
+## Daily archive feedback
+`python scripts/archive_sync.py sync --root BOOSTERAI_CHECKOUT` reads the pinned EmreMicrosoft/BoosterAI main archive at a resolved immutable commit. It stores validated inert snapshots, never overwrites local solutions or executes downloaded code, and keeps rollback history. Search them with the same script's `search` command. Daily means best effort at the first available skill invocation, not an installed timer. A real missing index/offline error is reported and the prior snapshot retained. See `references/daily-archive-sync.md` for trust/approval, size limits, rollback and verification boundaries.
