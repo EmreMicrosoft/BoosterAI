@@ -452,6 +452,30 @@ def require_archive_index_size(data):
     require(len(archive_json_bytes(data))<=profile.MAX_INDEX_BYTES,'archive index exceeds sync size limit')
 
 
+def require_archive_content_limits(base, data, pending_code=None):
+    """Check the current files and a proposed file against sync's byte limits.
+
+    ``data`` is the prospective serialized index, ``base`` is the authorized
+    repository, and ``pending_code`` optionally maps a not-yet-written relative
+    code path to its exact normalized byte length. Count every current index
+    entry as the snapshot reader does, including duplicates, plus the exact
+    serialized index bytes. Reject oversized code or a too-large total before
+    changing archive records. Current files must already have been validated by
+    the caller under its writer coordination; this is not a filesystem sandbox.
+    """
+    pending_code={} if pending_code is None else pending_code
+    require(isinstance(pending_code,dict),'invalid pending archive code sizes')
+    total=len(archive_json_bytes(data))
+    require(total<=profile.MAX_TOTAL_BYTES,'archive snapshot exceeds sync total size limit')
+    for entry in data['entries']:
+        path=entry['code']
+        size=pending_code[path] if path in pending_code else safe(base,path).stat().st_size
+        require(type(size) is int and size>=0,'invalid archive code size')
+        require(size<=profile.MAX_CODE_BYTES,'archive code exceeds sync size limit')
+        total+=size
+        require(total<=profile.MAX_TOTAL_BYTES,'archive snapshot exceeds sync total size limit')
+
+
 def atomic_archive_json(base, destination, data):
     """Replace JSON using a uniquely owned, identity-checked scratch directory.
 
@@ -636,6 +660,7 @@ def rebuild_index(base):
     data=profile.build_index(entries,links)
     require_verified_relationships(links or [],known_files)
     require_archive_index_size(data)
+    require_archive_content_limits(base,data)
     atomic_archive_json(base,existing,data)
     return data
 
@@ -673,7 +698,13 @@ def contains_private_text(text, private_terms):
 
 
 def archive_example(repository, source, review):
-    """Stage or improve a successful generalized example under existing owner authority; never push."""
+    """Stage a reviewed example with byte limits shared by the snapshot reader.
+
+    Source and review paths are relative to the authorized repository. Validate
+    review gates and the exact normalized code bytes before writing an archive
+    revision; rejected candidates stay local. Once writes begin, a failure may
+    require reconciliation. This does not authenticate the review or publish.
+    """
     base=repository_root(repository)
     code_path,review_path=safe(base,source),safe(base,review)
     require(code_path.is_file() and review_path.is_file(),'candidate and review must exist')
@@ -697,7 +728,15 @@ def archive_example(repository, source, review):
     for text in (title,summary,description,runtime):
         try:clean_text(text)
         except (ValueError,TypeError):reasons.append('invalid_public_text')
-    content=code_path.read_text(encoding='utf-8-sig')
+    # Universal newline decoding matches the bytes actually written to the archive.
+    # Read at most one character beyond the limit; each UTF-8 character occupies
+    # at least one byte, so oversized input is rejected without an unbounded read.
+    with code_path.open('r',encoding='utf-8-sig',newline=None) as stream:
+        content=stream.read(profile.MAX_CODE_BYTES+1)
+    code=content.encode('utf-8')
+    if len(code)>profile.MAX_CODE_BYTES:
+        reasons.append('code_exceeds_sync_size_limit')
+        return {'status':'LOCAL_ONLY','reasons':reasons,'published':False}
     if not content.strip():reasons.append('working_example_code_required')
     public_text=content+'\n'+str(title)+'\n'+str(summary)+'\n'+str(description)+'\n'+str(runtime)+'\n'+str(categories)+'\n'+str(tags)
     if contains_private_text(public_text,private_terms):reasons.append('possible_private_data')
@@ -715,7 +754,7 @@ def archive_example(repository, source, review):
         require(proof.is_file() and sha(proof)==data.get('evidence_sha256'),'missing/mismatched real-test evidence')
     except (ValueError,OSError,TypeError):reasons.append('unverified_evidence_reference')
     if reasons:return {'status':'LOCAL_ONLY','reasons':reasons,'published':False}
-    code=content.replace('\r\n','\n').encode('utf-8');code_hash=hashlib.sha256(code).hexdigest()
+    code_hash=hashlib.sha256(code).hexdigest()
     require(data.get('code_sha256')==sha(code_path),'reviewed candidate changed')
     root=workspace(base)
     with locked(root):
@@ -759,6 +798,7 @@ def archive_example(repository, source, review):
         candidate_index=profile.build_index([entry for entry in existing if entry['name']!=name]+[metadata],
                                             combined if graph is not None or relationships else None)
         require_archive_index_size(candidate_index)
+        require_archive_content_limits(base,candidate_index,{metadata['code']:len(code)})
         if contains_private_text(json.dumps(metadata,ensure_ascii=False),private_terms):
             return {'status':'LOCAL_ONLY','reasons':['possible_private_data'],'published':False}
         try:
@@ -805,6 +845,7 @@ def link_archive_files(repository, file, related_file, strength, derived_from=Fa
         updated=sorted([*old_links,relation],key=lambda link:(link['file'],link['relatedFile']))
         candidate_index=profile.build_index(records,updated)
         require_archive_index_size(candidate_index)
+        require_archive_content_limits(base,candidate_index)
         try:
             atomic_archive_json(base,safe(base,'solutions/relationships.json'),
                                 {'format':'boosterai-relationships-v1','relationships':updated})

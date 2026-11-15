@@ -94,6 +94,8 @@ def validate_schema(value, schema, document=None, location='$'):
 
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / 'solutions/archive.schema.json'
 MAX_INDEX_BYTES = 1048576
+MAX_CODE_BYTES = 262144
+MAX_TOTAL_BYTES = 8388608
 LANGUAGES = {'.py': 'Python', '.cs': 'C#', '.js': 'JavaScript', '.ts': 'TypeScript',
              '.ps1': 'PowerShell', '.sh': 'Shell', '.go': 'Go', '.rs': 'Rust',
              '.java': 'Java', '.cpp': 'C++', '.c': 'C'}

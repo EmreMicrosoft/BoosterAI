@@ -6,7 +6,7 @@ This optional workflow lets another user offer generalized, working improvements
 
 Before accessing, copying or publishing a contribution, obtain the source owner's explicit permission for the specified material and intended public review. Verify that the contributor has the rights to grant it, that the proposed license and attribution are acceptable, and that all necessary project and repository owners authorize the intended source, target and action. An assertion of rights or a GitHub link alone is not a grant. Follow any separate host or service requirement for action-time approval, and never bypass a refusal or an access boundary.
 
-A license recorded on an individual archive entry is not a repository-wide license or permission for a different contribution. Review the scope and rights for each item separately; do not infer a repository-wide grant from an entry's metadata.
+The repository-wide license is in `LICENSE`. A license recorded on an individual archive entry does not grant permission for a different contribution. Review the scope, license and rights for each item separately; do not infer a contributor's authorization from an entry's metadata.
 
 The contributor must identify the exact GitHub link for the proposed contribution or its source, and the authorized target repository and branch must be established before a remote action. Verify identities, repository, branch, scope and current remote state through supported host tools. A link does not authorize access to every repository. During this checkout's maintenance, the owner's one-repository restriction remains in force; another target or source is outside scope without a new explicit authorization.
 

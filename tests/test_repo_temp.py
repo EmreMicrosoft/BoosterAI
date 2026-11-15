@@ -27,8 +27,6 @@ class RepositoryTempTests(unittest.TestCase):
         self.assertEqual(Path(result.stdout.strip()), self.directory)
 
     def test_success_failure_and_setup_failure_leave_no_scratch(self):
-        base = repo_temp.ROOT / '_temp-files'
-        before = set(base.iterdir())
         environment = {key: os.environ.get(key) for key in ('TEMP', 'TMP', 'TMPDIR')}
         cached = tempfile.tempdir
         sibling = self.directory / 'keep.txt'
@@ -54,7 +52,8 @@ class RepositoryTempTests(unittest.TestCase):
             self.assertEqual(len(result.failures), int(failure == 'body'))
             self.assertEqual(len(created), 1)
             self.assertFalse(created[0].exists())
-            self.assertEqual(set(base.iterdir()), before)
+            # Independent processes may create or release their own siblings.
+            # Only this probe's registered directory and known sibling are ours.
             self.assertEqual(tempfile.tempdir, cached)
             self.assertEqual({key: os.environ.get(key) for key in environment}, environment)
             self.assertEqual(sibling.read_text(encoding='utf-8'), 'another live operation')

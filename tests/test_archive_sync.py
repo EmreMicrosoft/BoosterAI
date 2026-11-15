@@ -295,27 +295,37 @@ class ArchiveSyncTests(unittest.TestCase):
                 try:junction.rmdir()
                 except FileNotFoundError:pass
     def test_operation_directory_identity_failure_preserves_path_and_first_error(self):
-        scratch=self.root/'owned-temp';scratch.mkdir();lstat=Path.lstat;fired=[False]
-        def fail(path,*args,**kwargs):
+        """Inject the identity error only after the operation directory is created."""
+        scratch=self.root/'owned-temp';scratch.mkdir();identity=s.created_directory_identity;fired=[False]
+        def fail(path):
             if path.parent==scratch and path.name.startswith('.archive-sync-op-') and not fired[0]:
-                fired[0]=True;raise PermissionError('operation identity fixture')
-            return lstat(path,*args,**kwargs)
-        with patch.object(Path,'lstat',fail):
+                self.assertTrue(path.is_dir())
+                fired[0]=True
+                with patch.object(Path,'lstat',side_effect=PermissionError('operation identity fixture')):
+                    return identity(path)
+            return identity(path)
+        with patch.object(s,'created_directory_identity',side_effect=fail):
             with self.assertRaisesRegex(ValueError,'identity unavailable.*preserved.*first error: operation identity fixture') as caught:
                 s.sync(self.root,fetch=self.fetch,now=self.now,scratch='owned-temp')
+        self.assertTrue(fired[0])
         remaining=list(scratch.glob('.archive-sync-op-*'));self.assertEqual(len(remaining),1)
         self.assertIn(str(remaining[0]),str(caught.exception));self.assertTrue(remaining[0].is_dir())
         with self.assertRaisesRegex(ValueError,'unreconciled'):
             s.sync(self.root,force=True,fetch=self.fetch,now=self.now,scratch='owned-temp')
     def test_stage_directory_identity_failure_preserves_path_and_first_error(self):
-        scratch=self.root/'owned-temp';scratch.mkdir();lstat=Path.lstat;fired=[False]
-        def fail(path,*args,**kwargs):
+        """Inject the identity error only after the staging directory is created."""
+        scratch=self.root/'owned-temp';scratch.mkdir();identity=s.created_directory_identity;fired=[False]
+        def fail(path):
             if path.name=='stage' and path.parent.name.startswith('.archive-sync-op-') and not fired[0]:
-                fired[0]=True;raise PermissionError('stage identity fixture')
-            return lstat(path,*args,**kwargs)
-        with patch.object(Path,'lstat',fail):
+                self.assertTrue(path.is_dir())
+                fired[0]=True
+                with patch.object(Path,'lstat',side_effect=PermissionError('stage identity fixture')):
+                    return identity(path)
+            return identity(path)
+        with patch.object(s,'created_directory_identity',side_effect=fail):
             with self.assertRaisesRegex(ValueError,'identity unavailable.*preserved.*first error: stage identity fixture') as caught:
                 s.sync(self.root,fetch=self.fetch,now=self.now,scratch='owned-temp')
+        self.assertTrue(fired[0])
         remaining=list(scratch.glob('.archive-sync-op-*'));self.assertEqual(len(remaining),1)
         stage=remaining[0]/'stage';self.assertIn(str(stage),str(caught.exception));self.assertTrue(stage.is_dir())
         with self.assertRaisesRegex(ValueError,'unreconciled'):

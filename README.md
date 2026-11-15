@@ -45,8 +45,13 @@ Build checks, fixture tests, helper runtime tests, behavioral evaluations and re
 ## Self-contained operation
 The bundled engineering procedures cover source inspection, debugging, implementation, review, verification, task division and dynamic planning. Source links document design history only; they are not fetched at runtime. Use the bundled self-check instead of any external skill validator. It checks this package's narrow frontmatter and local-resource contract, not general YAML or agent discovery. Python itself and a tool-capable agent remain explicit prerequisites, so this is not a standalone operating system or autonomous service.
 
+## License
+This repository is licensed under the [MIT License](LICENSE). Review the recorded license, rights and attribution of individual archived or contributed material separately.
+
 ## Development
 Keep the skill concise. Add a regression scenario for each demonstrated failure. First run the helper tests, then evaluate the instructions on a fresh realistic task using an independent agent. Preserve failed/blocked results, and do not represent a simulated target as real product verification. Changes to the algorithm must invalidate affected stale acceptance evidence.
+
+The GitHub workflow checks Python 3.10–3.14 on Linux and Windows using only preinstalled runtimes and this repository; a missing runtime fails rather than triggering an external download. It runs `tests/ci_suite_c4e2b179.py`, an explicitly selected suite that excludes the previously refused local candidate modules, link-creation cases and a package-copy case. The workflow is not full unittest discovery, and a workflow definition alone is not evidence that its remote jobs passed.
 
 ## BoosterAI repository maintenance
 Maintain BoosterAI within its own working directory, without depending on other local projects or working directories. The only GitHub repository used for this maintenance is [EmreMicrosoft/BoosterAI](https://github.com/EmreMicrosoft/BoosterAI). In every work turn, use the owner's messages to identify and implement the applicable scoped improvements to the skill and its repository. Do not invent unrelated changes or create empty commits when a message requires no product change.

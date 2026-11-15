@@ -20,8 +20,8 @@ REPOSITORY='https://github.com/EmreMicrosoft/BoosterAI'
 COMMIT_URL='https://api.github.com/repos/EmreMicrosoft/BoosterAI/commits/main'
 RAW='https://raw.githubusercontent.com/EmreMicrosoft/BoosterAI/'
 MAX_INDEX=profile.MAX_INDEX_BYTES
-MAX_CODE=262144
-MAX_TOTAL=8388608
+MAX_CODE=profile.MAX_CODE_BYTES
+MAX_TOTAL=profile.MAX_TOTAL_BYTES
 
 
 def require(ok,message):
