@@ -47,6 +47,22 @@ _TOOL_FILES = ('scripts/harness_5b7e9c31.py', 'scripts/harness_state_2fc47a91.py
                'scripts/harness_unittest_b913ed42.py', 'scripts/task_cards_a61e2c97.py',
                'scripts/continuity_plan_64e9b1c2.py', 'scripts/claim_guard_8d31f72a.py',
                'scripts/project_tools.py')
+_POLICY_FILES = ('SKILL.md', 'AGENTS.md',
+                 'references/community-contributions.md',
+                 'references/daily-archive-sync.md',
+                 'references/design-evidence.md',
+                 'references/engineering-procedures.md',
+                 'references/functional-partials.md',
+                 'references/in-flight-messages.md',
+                 'references/logs-and-helpers.md',
+                 'references/operating-algorithm.md',
+                 'references/optional-harness.md',
+                 'references/owned-cleanup.md',
+                 'references/project-workspace.md',
+                 'references/publication-privacy.md',
+                 'references/records-and-continuity.md',
+                 'references/solution-archive.md',
+)
 
 
 class VerificationUncertain(RuntimeError):
@@ -121,9 +137,14 @@ def _snapshot(root, card, test):
 
 
 def _tool_snapshot():
-    """Observe the bundled verifier code separately from the consuming project."""
+    """Bind bundled code and explicit governing rules, not consumer project data.
+
+    Rule changes invalidate earlier acceptance observations. This fixed manifest
+    avoids scanning unrelated project records; new governing references must be
+    added here and are checked by the package-policy coverage regression.
+    """
     package = _CORE._root(Path(__file__).resolve().parents[1])
-    return {name: _CORE._read_hash(package, name) for name in _TOOL_FILES}
+    return {name: _CORE._read_hash(package, name) for name in (*_TOOL_FILES, *_POLICY_FILES)}
 
 
 def _revision(card, snapshot, case, tools):

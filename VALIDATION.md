@@ -107,3 +107,9 @@ The corrected selected suite passed 340 tests on Windows/Python 3.14 (42.409 sec
 ## Requirement 43: in-flight message routing
 
 The approved wording is preserved in SKILL.md and linked to bounded host-executed routing: deduplication, related review, independent delegation, ownership, dependency gates, STOP and unsupported-host fallback. Two focused text/link contract tests passed on Windows/Python 3.12 and 3.14; package self-check passed and resolved the new reference. These checks do not exercise live message delivery, automatic subagent dispatch or real-target integration; those remain NOT_RUN for this requirement. Existing host tools are necessary, not provided by this guidance. Publication and CI are separate evidence.
+
+## Governing-rule fingerprint coverage
+
+The harness now fingerprints SKILL.md, AGENTS.md and the explicit bundled reference manifest alongside its verifier implementation. Changing a rule invalidates older acceptance observations; adding a new bundled reference requires updating the manifest and is guarded by a coverage regression. Three focused tests passed on Windows/Python 3.12 and 3.14: actual current file hashing, synthetic per-rule invalidation, and unchanged-rule freshness. The invalidation tests mock project snapshots and changed hashes; they do not constitute a new Codex session, hook execution, or real product acceptance. Previous pilot evidence is stale after this verifier change.
+
+The established selected regression suite passed 351 tests on Windows/Python 3.14, excluding 14 individual cases and three candidate modules. This is not full discovery or real Codex acceptance. Independent source review found no blocker in this narrow change; repeated graph hashing remains a separate performance limitation.
