@@ -47,6 +47,12 @@ For coding requests, follow [functional partials](references/functional-partials
 - Where cooperating local processes need claims or selective rechecks, the optional helpers in the operating reference can hold slice/file claims and observe file fingerprints. File-observation readiness is not product acceptance or execution authority; the planner explicitly reports both as unverified. The helpers do not control nonparticipants, rerun rejected actions, authenticate evidence, or prove that product code ran. The real acceptance gate remains the owner's responsibility.
 - When a project opts in, the [single-executor harness](references/optional-harness.md) can record a selected task-card run and execute one explicitly named, trusted Python unittest against the real target. The host still performs development, checks that the test's assertions are meaningful and authorizes every action. After failure, inspect effects and change the relevant condition before retrying; preserve any detected denial. The host must relay STOP to the optional running-test control channel and enforce it for all other work. Stale or interrupted results do not become acceptance; the harness does not start a Codex session or control nonparticipants.
 
+## Requirement 42: focused completion
+
+BoosterAI kullanan görevler, istenen ürün tamamlanıp gerçek koşullarda doğrulanana kadar çalışmalarını sürdürmeye odaklanır. Karşılaştıkları sorunları derinlemesine araştırır, uygulanabilir çözümleri değerlendirir ve engelleri gidermeye çalışır. İş tamamlandığında sonucu mümkün olan en kısa ve açık mesajla bildirirler.
+
+Gerçek erişim engeli, kullanıcının durdurma talimatı aşılmaz; yalnız etkilenen adım durur, bağımsız yetkili işler sürdürülür.
+
 ## Keep attention on delivery
 
 At each natural checkpoint ask: What actual product behavior improved? What exact obstacle remains? What single action reduces it next? If two consecutive checkpoints only repeat the same status or preparation, change the approach: inspect the blocker, shrink the slice, remove unnecessary coordination, or report the exact external action required. Do not invent speculative infrastructure or parallel jobs. Preserve active owners, user input and unrelated work.
