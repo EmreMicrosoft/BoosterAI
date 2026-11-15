@@ -246,3 +246,8 @@ operation was retried. This is real harness/fixture execution, not a fresh Codex
 session, automatic hook, agent dispatch or external-product acceptance. GitHub
 CI readback is pending because the service rejected the prior query with an IP
 rate limit; no retry or alternate access was used to bypass that restriction.
+
+## Checked-in archive integrity regression
+
+Three read-only regressions validate the actual bundled archive rather than a copied fixture: current index records equal the stored metadata, current and historical revision bytes match their recorded hashes, relationship endpoints exist, and filtered search preserves the bidirectional relationship weights. Focused tests passed on Windows Python 3.12 and 3.14. These checks do not execute archived examples, authenticate their historical test claims, or establish Codex/host integration. Remote CI remains unverified while its existing API rate-limit restriction is unresolved.
+The selected Windows Python 3.14 suite passed 387 tests (14 cases and 3 modules remain excluded). After review, non-empty archive/relationship assertions were added and all three focused checks passed again on both local interpreters. No product code or governing policy changed.
