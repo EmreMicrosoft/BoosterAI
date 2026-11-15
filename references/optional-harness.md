@@ -78,17 +78,26 @@ post-test snapshot before an explicitly requested retry is allowed. A test's own
 side effects do not count as that change. External-only changes cannot satisfy
 this conservative gate automatically; they need a separately supported handoff.
 
-When a prerequisite becomes stale after a dependent task was started but before
-its verifier ever ran, pause the dependent's host work and inspect its effects.
-The usual two-step `reconcile` / `reconcile --effects-reviewed` can then mark it
-`WAITING_PREREQUISITE`, releasing the serial slot for prerequisite repair. This
-requires zero verification attempts, no verifier report or scratch operation,
-and no retry-change obligation. Observation alone remains `AMBIGUOUS` and does
-not release the slot. Once prerequisite acceptance is fresh again, explicitly
-`verify` the waiting task with its original run ID and test; its original limits
-still apply. This does not stop outside host work or prove external effects.
-Attempted/uncertain verification, changed contracts, DENIED and STOP barriers
-are not automatically released by this narrow recovery path.
+When a prerequisite becomes stale, a dependent may yield the serial slot only
+through the existing two-step `reconcile` / `reconcile --effects-reviewed` path
+and unchanged observed file effects. Two eligible cases are supported:
+
+- Never-run work: zero verification attempts, no verifier report or scratch
+  operation, and no retry-change obligation.
+- A durably completed `FAILED` attempt: a recorded FAILED outcome, retained
+  failed-file and verifier snapshots, and an outstanding retry-change obligation.
+
+A reviewed eligible dependent becomes `WAITING_PREREQUISITE`, allowing the
+prerequisite to be repaired and verified first. Observation alone is not review:
+never-run work remains `AMBIGUOUS`, and a completed failure remains `FAILED`.
+Once prerequisite acceptance is fresh, explicitly `verify` the waiting task
+with its original run ID and test. Attempts, elapsed limits, failure history
+and failed snapshots are preserved. A failed task still requires changed
+inputs or verifier since its failure; yielding alone does not permit replay.
+This does not stop outside host work or authenticate external effects.
+Attempted `AMBIGUOUS` verification, missing failure metadata, changed contracts,
+DENIED and STOP barriers are not released by this recovery path.
+
 The runner classifies a directly observed Python `PermissionError` as `DENIED`
 without recording its message or path. If that happens before a report can be
 written, its reserved exit code 77 also stops the task; arbitrary test code can

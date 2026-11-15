@@ -151,3 +151,11 @@ The selected Windows Python 3.14 suite passed 368 tests before the final focused
 limit test was added; the final twelve tests were then rerun. Fourteen cases and
 three candidate modules remain excluded. No real verifier, Codex host or access
 refusal was invoked by the new focused tests. Prior pilot evidence remains STALE.
+
+Recovery reference follow-up: the governing harness reference now describes both
+never-run and durably FAILED dependent yielding, without treating ambiguous work
+as completed. After this rule change, actual bundled policy fingerprint tests
+passed on Python 3.12 and 3.14 (3 each), failed-prerequisite regressions passed
+(12), and the Windows Python 3.14 selected suite passed 369 tests. Exclusions
+remain 14 cases and 3 candidate modules. This is current code/rule regression
+coverage, not a fresh host pilot; older acceptance fingerprints remain STALE.
