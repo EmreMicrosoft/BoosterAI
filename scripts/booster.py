@@ -355,11 +355,13 @@ def self_check(root):
                      'scripts/archive_profile.py', 'scripts/find_directory.py',
                      'scripts/contribution_preflight_5c294f8d.py', 'scripts/publication_scan_91c4e6b2.py',
                      'scripts/claim_guard_8d31f72a.py', 'scripts/continuity_plan_64e9b1c2.py',
-                     'scripts/task_cards_a61e2c97.py', 'solutions/archive.schema.json',
+                     'scripts/task_cards_a61e2c97.py', 'scripts/flow_schema_42d8e671.py',
+                     'scripts/flow_cards_f930b1a6.py', 'solutions/archive.schema.json',
                      'tests/test_booster.py', 'tests/test_project_tools.py', 'tests/test_archive_sync.py',
                      'tests/test_archive_profile.py', 'tests/test_contribution_preflight.py',
                      'tests/test_publication_scan.py', 'tests/test_claim_guard.py',
-                     'tests/test_continuity_plan.py', 'tests/test_task_cards.py', 'tests/repo_temp.py',
+                     'tests/test_continuity_plan.py', 'tests/test_task_cards.py',
+                     'tests/test_flow_schema.py', 'tests/test_flow_cards.py', 'tests/repo_temp.py',
                      'tests/test_repo_temp.py', 'tests/test_find_directory.py', 'README.md'):
         require(checked(root, resource).is_file(), 'missing package file: ' + resource)
     registration = checked(root, '.agents/skills/booster-ai/SKILL.md')
