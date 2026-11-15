@@ -1,4 +1,4 @@
-"""Optional single-executor, project-local acceptance harness for BoosterAI.
+"""Single-executor, project-local acceptance harness for BoosterAI.
 
 The host performs development and authorizes each explicitly named test. This
 tool records one selected task-card graph and executes only a trusted Python
@@ -36,6 +36,7 @@ _CARDS = _load('booster_harness_cards', 'task_cards_a61e2c97.py')
 _CORE = _CARDS._CORE
 _STATE = _load('booster_harness_state', 'harness_state_2fc47a91.py')
 _TOOLS = _STATE.project_tools
+_PACKAGE = _load('booster_harness_package', 'booster.py')
 _RUNNER = Path(__file__).resolve().with_name('harness_unittest_b913ed42.py')
 _BEGIN = '<!-- BOOSTERAI_HARNESS_SOURCE_BEGIN -->'
 _END = '<!-- BOOSTERAI_HARNESS_SOURCE_END -->'
@@ -46,7 +47,7 @@ _MAX_REPORT = 65536
 _TOOL_FILES = ('scripts/harness_5b7e9c31.py', 'scripts/harness_state_2fc47a91.py',
                'scripts/harness_unittest_b913ed42.py', 'scripts/task_cards_a61e2c97.py',
                'scripts/continuity_plan_64e9b1c2.py', 'scripts/claim_guard_8d31f72a.py',
-               'scripts/project_tools.py', 'scripts/archive_profile.py')
+               'scripts/project_tools.py', 'scripts/archive_profile.py', 'scripts/booster.py')
 _POLICY_FILES = ('SKILL.md', 'AGENTS.md',
                  'references/community-contributions.md',
                  'references/daily-archive-sync.md',
@@ -207,6 +208,8 @@ def _data(data, source):
     _require(set(data) in ({'format', 'source', 'tasks'}, {'format', 'source', 'tasks', 'stopped'})
              and data['source'] == source and type(data.get('stopped', False)) is bool
              and isinstance(data['tasks'], dict), 'unrecognized or different harness plan; preserved')
+    _require(all(isinstance(item, dict) for item in data['tasks'].values()),
+             'unrecognized task record; preserved')
     data.setdefault('stopped', False)
     return data
 
@@ -217,6 +220,46 @@ def _item(data, identifier, run_id):
     _require(isinstance(item, dict) and item.get('run_id') == run_id,
              'task or run identifier does not match')
     return item
+
+
+def preflight(root, source, requested_python=None):
+    """Observe package, actual Python, graph and cooperative harness state together.
+
+    The lock may create normal project workspace/claim guards, but no task,
+    acceptance test, agent or hook is started and no state file is changed.
+    READY means eligible to plan a new run, not authorization or acceptance.
+    Existing active/uncertain work and STOP remain barriers to a new run.
+    """
+    package = _PACKAGE.self_check(Path(__file__).resolve().parents[1])
+    runtime = _PACKAGE.runtime_check('python', requested_version=requested_python)
+    _require(runtime['valid'], 'Python does not satisfy the default or explicitly requested version')
+    with _STATE.locked(root) as root:
+        bundle, cards = _source(root, source)
+        data, raw = _STATE.read(root)
+        data = _data(data, source)
+        stale = _refresh(root, data, cards)
+        active = sorted(name for name, item in data['tasks'].items()
+                        if item.get('status') in _ACTIVE | {'STOP_REQUESTED'})
+        reasons = []
+        if data['stopped']:
+            reasons.append('project_stopped')
+        if active:
+            reasons.append('existing_active_or_uncertain_work')
+        known = _ACTIVE | {'STOP_REQUESTED', 'STOPPED', 'DENIED', 'FAILED',
+                           'STALE', 'VERIFIED', 'NOT_RUN', 'WAITING_PREREQUISITE'}
+        if any(item.get('status') not in known for item in data['tasks'].values()):
+            reasons.append('unrecognized_task_state')
+        if any(name not in cards or item.get('card_sha256') != _digest(cards[name])
+               for name, item in data['tasks'].items()):
+            reasons.append('task_contract_review_required')
+        return {'status': 'BLOCKED' if reasons else 'READY',
+                'package_valid': package['valid'], 'runtime': runtime,
+                'source_revision': bundle['source_revision'], 'card_count': len(cards),
+                'state_present': raw is not None, 'stale_observed': stale,
+                'active_tasks': active, 'blocked_reasons': reasons,
+                'task_start_authorized': False, 'product_acceptance_verified': False,
+                'codex_host_verified': False, 'automatic_hook_verified': False,
+                'state_modified': False}
 
 
 def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3600):
@@ -755,6 +798,8 @@ def main(argv=None):
     begin.add_argument('--timeout', type=int, default=60)
     begin.add_argument('--max-elapsed', type=int, default=3600)
     sub.add_parser('status')
+    check = sub.add_parser('preflight')
+    check.add_argument('--requested-python', help='Only for an explicit user-requested version')
     for name in ('verify', 'reconcile', 'stop'):
         command = sub.add_parser(name)
         command.add_argument('--task', required=True)
@@ -768,7 +813,9 @@ def main(argv=None):
             command.add_argument('--effects-reviewed', action='store_true')
     args = parser.parse_args(argv)
     try:
-        if args.command == 'start':
+        if args.command == 'preflight':
+            result = preflight(args.root, args.source, args.requested_python)
+        elif args.command == 'start':
             result = start(args.root, args.source, args.task, args.test, args.case,
                            args.max_attempts, args.timeout, args.max_elapsed)
         elif args.command == 'status':
@@ -783,7 +830,7 @@ def main(argv=None):
         print(json.dumps(result, sort_keys=True, ensure_ascii=True))
         if result.get('status') == 'STOPPED' and args.command == 'verify':
             return 130
-        return 0 if result.get('status') not in {'FAILED', 'DENIED', 'AMBIGUOUS', 'STALE', 'NOT_RUN'} else 1
+        return 0 if result.get('status') not in {'FAILED', 'DENIED', 'AMBIGUOUS', 'STALE', 'NOT_RUN', 'BLOCKED'} else 1
     except VerificationAccessDenied as error:
         print(json.dumps({'error': str(error), 'status': 'ACCESS_DENIED',
                           'reconciliation_required': True, 'retry_prohibited': True}, ensure_ascii=True))

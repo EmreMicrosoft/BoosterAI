@@ -1,11 +1,34 @@
-# Optional single-executor harness
+# Integrated single-executor harness
 
-The Markdown skill works without this Python 3.10+ standard-library helper. A
-tool-capable host owns development, authorization, STOP, and the meaning of
+Product coding uses the Markdown skill and this harness together. The helper
+retains Python 3.10+ compatibility; new work defaults to stable Python 3.12+. A
+tool-capable host owns development, authorization, STOP, and meaningful
 acceptance. The harness does not launch a Codex session, run plan prose as a
 shell command, sandbox tests, or grant permissions. Project test code is trusted
 and can have arbitrary side effects; inspect the exact test and authorize it in
 the host before each execution. Never use this tool to repeat a denied action.
+
+## Combined startup check
+
+After selecting a complete source graph, run:
+
+```text
+python -I -S -B scripts/harness_5b7e9c31.py --root PROJECT --source PLAN.json preflight
+```
+
+This reads actual package resources, the current Python version, selected graph
+and cooperative state. Acquiring the lock may create normal workspace/claim
+guards; no task state is written and no acceptance test, agent or hook starts.
+Active/uncertain work, project STOP, unknown task states or changed contracts
+block a new run (exit 1); invalid input/runtime/package returns NOT_RUN (exit 2).
+READY (exit 0) is a structural starting condition, not authorization, discovery,
+product acceptance or proof of automatic continuation. Observed stale evidence
+is reported without overwriting state; normal status/verify commands recheck it.
+Use `--requested-python VERSION` only for an explicit user version request.
+Existing start/verify APIs remain compatible; they do not mechanically require
+proof that the host ran preflight. Automatic host hook invocation remains
+NOT_RUN until separately exercised and evidenced. Do not infer it from this
+command or create a duplicate host session to demonstrate it.
 
 ## Plan and run
 

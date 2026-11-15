@@ -3,7 +3,7 @@
 A portable instruction skill for incremental, evidence-driven software delivery. It organizes work without pretending that more agents, a green build, or a status file constitute working software.
 
 ## Use
-Read `SKILL.md` in your coding agent and explicitly ask it to apply BoosterAI to your authorized project. The package uses ordinary Markdown and optional Python standard-library tooling. Agent-specific installation and skill discovery differ; placing this repository on disk does **not** prove that an agent discovers or follows it. No hooks, global configuration, schedulers or other projects are changed by this package.
+Read `SKILL.md` in your coding agent and explicitly ask it to apply BoosterAI to your authorized project. Product coding uses the Markdown skill and bundled Python standard-library harness together. Agent-specific installation and skill discovery differ; placing this repository on disk does **not** prove that an agent discovers or follows it. No hooks, global configuration, schedulers or other projects are changed by this package.
 
 For Codex sessions started in this checkout, the repository-local `.agents/skills/booster-ai/SKILL.md` registers `booster-ai` and points to the single canonical root `SKILL.md`. Open or refresh a Codex session in this repository, then invoke `$booster-ai`. This registration is scoped to the checkout; it does not install a user-wide skill. The bundled self-check reports the Python version and hashes of the local canonical source and registration target; matching hashes verify their local relationship, not independent authenticity. Compare a trusted remote revision separately. Actual Codex discovery and a task run must also be verified separately.
 
@@ -11,8 +11,8 @@ The core loop is: current requirement -> smallest executable slice -> implementa
 
 Prefer a suitable, authorized Codex CLI workflow without interrupting an existing user-selected session. For local coding work, one authorized, available subagent researches the function's distinct topics on Stack Overflow with generic privacy-safe queries; unavailable or refused delegation, network access or site access is reported without blocking independent work. Never use another interface to evade an actual refusal.
 
-## Optional tools
-The Markdown skill needs a capable host agent. Optional helpers need Python 3.10+ and its standard library only. No other skill, pip package, external service, global installation, API key or network access is required. The product under development may have its own runtime/build/device prerequisites; BoosterAI does not bundle those environments.
+## Bundled tools
+The combined workflow needs a capable host agent and defaults to stable Python 3.12+; bundled helper compatibility retains Python 3.10+ and the standard library only. No other skill, pip package, external service, global installation, API key or network access is required. The product under development may have its own runtime/build/device prerequisites; BoosterAI does not bundle those environments.
 
 ```text
 python scripts/booster.py self-check
@@ -32,7 +32,7 @@ For multiple local participants, `scripts/claim_guard_8d31f72a.py` provides proc
 
 For task decomposition, `scripts/task_cards_a61e2c97.py` generates cards from an explicitly selected structured source graph and validates a proposed bundle against every source node and slice. It checks graph ordering and declared file conflicts before returning a valid result. Use `generate` with source JSON on stdin, then `validate` with both the current source and bundle on stdin; the exact contract is in `references/operating-algorithm.md`. This is a planning check, not an executor, a test result or proof that the selected source included an omitted requirement.
 
-The optional [single-executor harness](references/optional-harness.md) connects a selected task card to one explicitly named, trusted Python acceptance test. The host still develops the code and approves the actual test; a real, non-skipped passing case and unchanged declared code and verifier bytes are required for `VERIFIED`. A single local state file records attempts and interruption recovery. The harness does not launch Codex or sandbox project tests, control outsiders, authenticate arbitrary evidence, or measure model cost. The standalone skill remains usable without it.
+The [single-executor harness](references/optional-harness.md) connects a selected task card to one explicitly named, trusted Python acceptance test. The host still develops the code and approves the actual test; a real, non-skipped passing case and unchanged declared code and verifier bytes are required for `VERIFIED`. A single local state file records attempts and interruption recovery. The harness does not launch Codex or sandbox project tests, control outsiders, authenticate arbitrary evidence, or measure model cost. Run the combined harness `preflight` before registering product work. Legacy direct APIs remain compatible, but do not establish that the host used preflight or an automatic hook.
 
 For the documented narrow Mermaid profile, `scripts/flow_schema_42d8e671.py` extracts the actual source nodes, control transitions, decisions and cyclic components. `scripts/flow_cards_f930b1a6.py` derives unresolved node candidates, checks source coverage, previews explicitly supplied routes and can bind explicit slice metadata to one action. Branches, loops, missing details and actual execution remain separate; the profile and unsupported source formats are described in the operating reference.
 

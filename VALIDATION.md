@@ -203,3 +203,26 @@ Both tests passed on Python 3.12 and 3.14; the selected Windows Python 3.14 suit
 passed 377 tests (14 cases and 3 candidate modules excluded). Independent review
 confirmed the actual import chain. No real host/acceptance runner was launched
 by these focused tests; prior harness evidence is STALE after this correction.
+
+### Combined skill, runtime, plan and harness startup preflight
+
+Product-coding instructions now use skill and harness together rather than opt-in
+harness wording. The `preflight` command checks actual package resources, the
+current Python runtime, the selected complete card graph and cooperative state.
+It starts no task, verifier, agent or hook and does not write task state. Normal
+workspace/claim guards can be created while taking the lock. Active/uncertain
+work, STOP, unknown task states and changed contracts block a new run. Malformed
+task records return NOT_RUN without overwriting state; independent review found
+and prompted this guard before publication. READY is not execution authorization
+or product acceptance. Legacy direct APIs remain compatible and do not enforce
+proof of preflight invocation; automatic host hooks remain NOT_RUN.
+
+Six focused tests passed on Windows Python 3.12 and 3.14 using the real bundled
+package and isolated filesystem plans/state. State preservation, actual runtime
+observation, active/STOP/contract barriers, malformed input and CLI exit codes
+were exercised. Stale/verified metadata in these fixtures is synthetic, not a
+real passed product test. Governing policy/dependency fingerprint checks were
+rerun after rule changes. Final selected Windows Python 3.14 suite: 383 tests
+passed, 14 cases and 3 candidate modules excluded. Preview-Python preflight cases
+are explicitly skipped because the startup policy requires a stable interpreter.
+No new Codex session, previously refused test or junction test was invoked.
