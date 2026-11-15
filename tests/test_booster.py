@@ -19,6 +19,19 @@ spec.loader.exec_module(b)
 def plan():
     return {'revision':'r1','goal':'visible value','next':'a','nodes':[{'id':'a','owner':'one','depends_on':[], 'status':'planned','acceptance':'value is visible','target':'real-terminal','revision':'r1'}]}
 
+class GuidanceTests(unittest.TestCase):
+    def test_blocking_ambiguity_guidance_is_record_first_and_bounded(self):
+        # Text-contract regression only, not proof of a future agent's behavior.
+        for relative in ('SKILL.md','references/operating-algorithm.md'):
+            with self.subTest(file=relative):
+                text=(ROOT/relative).read_text(encoding='utf-8')
+                section=text.split('## Requirement 40:',1)[1].split('\n## ',1)[0]
+                self.assertLess(section.index('first inspect'),section.index('ask short, concrete questions'))
+                self.assertIn('Do not invent the intended product behavior',section)
+                self.assertIn('Do not block development for routine technical decisions',section)
+                self.assertIn('continue independent work that is already clear',section)
+
+
 class PlanTests(unittest.TestCase):
     def test_nonobject(self):
         with self.assertRaises(ValueError): b.validate([])
@@ -316,6 +329,8 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual((preserved.read_bytes(),preserved.stat().st_mtime_ns),(content,mtime))
         guidance=(partials.with_name('samples-unavailable')/'README.md').read_text()
         self.assertIn('read-only learning references',guidance)
+        self.assertIn('verified clickable file links when the host supports them',guidance)
+        self.assertIn('Check that targets exist; never invent links',guidance)
         self.assertIn('Never import, link, include, dynamically load or build against',guidance)
 
     def test_partials_refuses_missing_root_and_file_collision(self):

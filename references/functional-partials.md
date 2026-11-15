@@ -23,6 +23,10 @@ When requests change, revise affected nodes/contracts and mark affected partial 
 
 Keep a distinct project-local searchable index of the using project's own partials and experiences, including both standard `_boosterAI/_partials/` and any existing root `_partials/`. Preserve existing indices, source files and schemas; choose the supported location beside `_boosterAI` records without conflating it with the common `solutions/index.json`. Record only necessary project-local metadata and respect its privacy boundaries.
 
+## Requirement 39: final file links
+
+At the end of a local task that creates or saves function examples, list each resulting file in project-root `_partials/` or `_boosterAI/_partials/` as a clickable link when the current host supports a valid file-link format. Verify that each target exists and use the actual path, not a guessed URL or an unrelated file. Include a short purpose and the observed test status. If valid clickable local links are unsupported, give the exact project-relative path and state that limitation; do not claim a link was delivered or opened. Keep private local paths in the authorized local task audience, not public repository reports or another project. These are navigation links for reading examples, never production dependencies.
+
 ## Optional per-step backup
 
 Only if the user requests it and identifies/authorizes the destination and scope, back up each verified step to GitHub using the host's supported existing path. Review the diff for secrets and unrelated data; do not publish private code to a public destination without authorization. Record verified remote branch/commit readback, not just local commit or command exit. If unavailable/rejected, record BACKUP_FAILED with the actual reason and preserve local work. Continue independent authorized work unless the user's instructions make successful backup a prerequisite. No GitHub SDK, remote account or network is required for the core workflow, and the scaffold never performs a push automatically.
