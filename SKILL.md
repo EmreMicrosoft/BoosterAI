@@ -35,6 +35,7 @@ For coding requests, follow [functional partials](references/functional-partials
 - Do not implement the next dependent algorithm slice until the current slice's real test passes. Independent diagnosis, preparing required test access, or fixing this slice is allowed. An unavailable target remains `NOT_RUN`, not PASS or an excuse to fabricate a simulation.
 - On failure, identify whether the action was unattempted, rejected, failed after starting, or ambiguous. Reconcile ambiguous effects before retrying. Change one evidence-based cause, add the smallest relevant regression/recovery behavior to the product, and retest the same real path. Never retry unchanged failures indefinitely or evade a real refusal.
 - On success, update the one canonical project record, release task-owned resources, and continue the next ready authorized slice without routine reapproval. Prefer verified events/readback to polling. Read [records and continuity](references/records-and-continuity.md) for handoff, interruption and tool boundaries.
+- Where cooperating local processes need claims or selective rechecks, the optional helpers in the operating reference can hold slice/file claims and observe file fingerprints. They do not control nonparticipants, rerun rejected actions, authenticate evidence, or prove that product code ran. The real acceptance gate remains the owner's responsibility.
 
 ## Keep attention on delivery
 
