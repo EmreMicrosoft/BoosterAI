@@ -29,16 +29,65 @@ class DenialPersistenceTests(unittest.TestCase):
 
     def test_direct_denial_is_durable_and_not_replayable(self):
         """A known denial survives status/reconciliation without retry eligibility."""
-        with self.assertRaisesRegex(h.VerificationAccessDenied, 'denial recorded') as caught:
-            self.memory.verify('B')
+        with patch.object(h.os.environ, 'copy', side_effect=self.denial):
+            with self.assertRaisesRegex(h.VerificationAccessDenied, 'denial recorded') as caught:
+                self.memory.verify('B')
         self.assertIs(caught.exception.__cause__, self.denial)
-        self.assertEqual(self.run.call_count, 1)
+        self.run.assert_not_called()
         self.assertEqual(h.status(ROOT, 'plan.json')['tasks']['B']['status'], 'DENIED')
         with self.assertRaisesRegex(ValueError, 'not recoverable'):
             h.reconcile(ROOT, 'plan.json', 'B', 'B')
         with self.assertRaisesRegex(ValueError, 'denied'):
             self.memory.verify('B')
+        self.run.assert_not_called()
+
+    def test_potential_live_child_retains_slot_and_cannot_be_reconciled(self):
+        """A launch/wait/termination denial leaves child lifetime unknown."""
+        with self.assertRaises(h.VerificationAccessDenied):
+            self.memory.verify('B')
+        item = self.memory.data['tasks']['B']
+        self.assertEqual(item['status'], 'AMBIGUOUS')
+        self.assertTrue(item['access_denial']['child_outcome_unknown'])
+        with self.assertRaisesRegex(ValueError, 'access denial'):
+            h.reconcile(ROOT, 'plan.json', 'B', 'B', effects_reviewed=True)
+        with self.assertRaisesRegex(ValueError, 'another task'):
+            self.memory.verify('A')
         self.assertEqual(self.run.call_count, 1)
+
+    def test_reaped_child_report_denial_can_be_denied(self):
+        """A returned/reaped child is distinct from a failed launch or wait."""
+        from types import SimpleNamespace
+        with patch.object(h.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), \
+             patch.object(h, '_report', side_effect=self.denial):
+            with self.assertRaises(h.VerificationAccessDenied):
+                self.memory.verify('B')
+        item = self.memory.data['tasks']['B']
+        self.assertEqual(item['status'], 'DENIED')
+        self.assertFalse(item['access_denial']['child_outcome_unknown'])
+
+    def test_pending_stop_retains_unknown_outcome_and_denial(self):
+        """A denied termination preserves STOP and unknown effects without replay."""
+        def interrupted(command, root, env, timeout, stream, persist_stop):
+            persist_stop()
+            raise self.denial
+        with patch.object(h, '_interruptible', side_effect=interrupted) as stop:
+            with self.assertRaises(h.VerificationAccessDenied) as caught:
+                h.verify(ROOT, 'plan.json', 'B', 'B', 'test.py',
+                         'Checks.test_ok', stop_stream=object())
+        self.assertIs(caught.exception.__cause__, self.denial)
+        self.assertEqual(stop.call_count, 1)
+        item = self.memory.data['tasks']['B']
+        self.assertEqual(item['status'], 'STOP_REQUESTED')
+        self.assertIsNone(item['ended_at'])
+        self.assertTrue(item['access_denial']['retry_prohibited'])
+        self.assertTrue(item['access_denial']['stop_outcome_unknown'])
+        self.assertTrue(item['scratch'])
+        self.assertEqual(h.status(ROOT, 'plan.json')['tasks']['B']['status'], 'AMBIGUOUS')
+        with self.assertRaisesRegex(ValueError, 'stopped'):
+            self.memory.verify('B')
+        with self.assertRaisesRegex(ValueError, 'stopped'):
+            h.reconcile(ROOT, 'plan.json', 'B', 'B', effects_reviewed=True)
+        self.run.assert_not_called()
 
     def test_initial_state_write_denial_is_not_retried(self):
         """A failed initial write never launches a verifier or repeats persistence."""
@@ -62,7 +111,7 @@ class DenialPersistenceTests(unittest.TestCase):
             with self.assertRaisesRegex(h.VerificationAccessDenied, 'not confirmed') as caught:
                 self.memory.verify('B')
         self.assertIs(caught.exception.__cause__, self.denial)
-        self.assertEqual(calls, ['VERIFYING', 'DENIED'])
+        self.assertEqual(calls, ['VERIFYING', 'AMBIGUOUS'])
         self.assertEqual(self.memory.data['tasks']['B']['status'], 'VERIFYING')
 
     def test_stop_state_write_denial_is_not_retried(self):

@@ -293,9 +293,21 @@ class HarnessFlowTests(unittest.TestCase):
             with self.assertRaises(harness.VerificationAccessDenied):
                 harness.verify(self.root, 'plan.json', 'a', item['run_id'],
                                'acceptance.py', 'Product.test_accept', stop_stream=io.StringIO())
+        saved, _ = harness._STATE.read(self.root)
+        self.assertEqual(saved['tasks']['a']['status'], 'STOP_REQUESTED')
+        self.assertIsNone(saved['tasks']['a']['ended_at'])
         state = harness.status(self.root, 'plan.json')
         self.assertTrue(state['stopped'])
         self.assertEqual(state['tasks']['a']['status'], 'AMBIGUOUS')
+        self.assertEqual(state['tasks']['a']['access_denial'],
+                         {'retry_prohibited': True, 'stop_outcome_unknown': True,
+                          'child_outcome_unknown': True})
+        self.assertTrue((self.root / state['tasks']['a']['scratch']).is_dir())
+        with self.assertRaisesRegex(ValueError, 'stopped'):
+            harness.reconcile(self.root, 'plan.json', 'a', item['run_id'], True)
+        with self.assertRaisesRegex(ValueError, 'stopped'):
+            harness.verify(self.root, 'plan.json', 'a', item['run_id'],
+                           'acceptance.py', 'Product.test_accept')
 
     def test_preflight_permission_error_is_visible_without_private_details(self):
         output = io.StringIO()

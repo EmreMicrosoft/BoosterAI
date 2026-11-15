@@ -272,6 +272,8 @@ def reconcile(root, source, identifier, run_id, effects_reviewed=False):
                          for name, other in data['tasks'].items()), 'another task is active or ambiguous')
         _require(item['status'] in {'ACTIVE', 'VERIFYING', 'AMBIGUOUS', 'FAILED'},
                  'task is not recoverable')
+        _require(not item.get('access_denial', {}).get('retry_prohibited'),
+                 'access denial prohibits reconciliation or replay')
         _require(identifier in cards and item['card_sha256'] == _digest(cards[identifier]),
                  'task contract changed; manual review required')
         current = _snapshot(root, cards[identifier], item['test'])
@@ -512,6 +514,7 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
         child = None
         after = None
         state_write_failed = False
+        child_may_be_live = False
 
         def persist_state():
             """Write once; never retry failed persistence merely to record denial."""
@@ -548,6 +551,7 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
                                '--report', str(report_path)]
                     timeout = min(item['timeout_seconds'], remaining)
                     clean = False
+                    child_may_be_live = True
                     if stop_stream is None:
                         child = subprocess.run(command, cwd=root, env=env,
                                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -556,6 +560,7 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
                     else:
                         child, stopped = _interruptible(command, root, env, timeout, stop_stream,
                                                         persist_stop)
+                    child_may_be_live = False
                     if stopped:
                         data['stopped'] = True
                         result = 'STOPPED'
@@ -621,8 +626,16 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
             # Preserve known denial instead of allowing reconciliation to replay it.
             # Do not retry a failed state write or touch uncertain child effects.
             clean = False
-            item['status'] = 'DENIED'
-            item['ended_at'] = _now()
+            # A denied termination does not establish that the child stopped.
+            # Retain the pending STOP and project barrier; status() exposes its
+            # unknown outcome as AMBIGUOUS, with the denial recorded separately.
+            stop_pending = item['status'] == 'STOP_REQUESTED'
+            if not stop_pending:
+                item['status'] = 'AMBIGUOUS' if child_may_be_live else 'DENIED'
+                item['ended_at'] = _now()
+            item['access_denial'] = {'retry_prohibited': True,
+                                     'stop_outcome_unknown': stop_pending,
+                                     'child_outcome_unknown': child_may_be_live}
             item['cleanup'] = {'status': 'PRESERVED', 'retry_prohibited': True}
             persisted = False
             if not state_write_failed:
