@@ -714,7 +714,7 @@ def archive_example(repository, source, review):
     reasons=[key for key in gates if data.get(key) is not True]
     if data.get('outcome')!='success':reasons.append('successful_real_verification_required')
     license_id=data.get('license')
-    if license_id not in ('MIT','Apache-2.0','BSD-3-Clause','CC0-1.0'):reasons.append('license_not_supported_or_confirmed')
+    if license_id != 'MIT':reasons.append('license_not_supported_or_confirmed')
     title,name=data.get('title'),data.get('name')
     if not isinstance(name,str) or not re.fullmatch(r'[a-z][a-z0-9-]{0,63}',name):reasons.append('invalid_name')
     categories,tags=data.get('categories',['general']),data.get('tags',[])

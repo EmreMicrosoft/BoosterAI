@@ -47,7 +47,7 @@ Build checks, fixture tests, helper runtime tests, behavioral evaluations and re
 The bundled engineering procedures cover source inspection, debugging, implementation, review, verification, task division and dynamic planning. Source links document design history only; they are not fetched at runtime. Use the bundled self-check instead of any external skill validator. It checks this package's narrow frontmatter and local-resource contract, not general YAML or agent discovery. Python itself and a tool-capable agent remain explicit prerequisites, so this is not a standalone operating system or autonomous service.
 
 ## License
-This repository is licensed under the [MIT License](LICENSE). Review the recorded license, rights and attribution of individual archived or contributed material separately.
+This repository and newly accepted archive contributions use only the [MIT License](LICENSE), SPDX identifier `MIT`. Contributions require the source owner's authority to offer the material under MIT. Preserve required copyright and attribution notices; do not relabel third-party material or historical snapshots to remove their existing obligations. Material that cannot be offered under MIT stays local and is not admitted to this archive.
 
 ## Development
 Keep the skill concise. Add a regression scenario for each demonstrated failure. First run the helper tests, then evaluate the instructions on a fresh realistic task using an independent agent. Preserve failed/blocked results, and do not represent a simulated target as real product verification. Changes to the algorithm must invalidate affected stale acceptance evidence.

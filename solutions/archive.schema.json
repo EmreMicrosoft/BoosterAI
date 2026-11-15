@@ -58,7 +58,7 @@
         "runtimePlatform": {"type": "string", "minLength": 1, "maxLength": 100},
         "codeRepository": {"const": "https://github.com/EmreMicrosoft/BoosterAI"},
         "codeSampleType": {"const": "full"},
-        "license": {"enum": ["MIT", "Apache-2.0", "BSD-3-Clause", "CC0-1.0"]},
+        "license": {"const": "MIT"},
         "revision": {"type": "integer", "minimum": 1, "maximum": 9999},
         "categories": {"$ref": "#/$defs/categoryPath"},
         "categoryAliases": {"type": "array", "maxItems": 30, "uniqueItems": true, "items": {"$ref": "#/$defs/slug"}},

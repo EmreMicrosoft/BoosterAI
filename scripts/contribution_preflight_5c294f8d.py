@@ -131,6 +131,8 @@ def evaluate(root, review):
     for key in TEXT_FIELDS:
         if key not in missing and not nonempty_text(review[key]):
             invalid.append(key)
+    if 'license' not in missing and review.get('license') != 'MIT' and 'license' not in invalid:
+        invalid.append('license')
     if review.get('target_repository', TARGET) != TARGET:
         invalid.append('target_repository')
     if review.get('target_branch', BRANCH) != BRANCH:
@@ -151,6 +153,22 @@ def evaluate(root, review):
             'network_accessed': False, 'source_executed': False, 'pr_status': 'NOT_RUN', 'pr_created': False}
 
 
+def unique_review_object(pairs):
+    """Reject ambiguous JSON objects rather than silently selecting a last value.
+
+    Apply this to every object, including nested metadata. Duplicate consent,
+    license or review fields are invalid even when their values match. Keep the
+    diagnostic generic so no private key or value is reflected to the caller.
+    This is input validation only, not authentication of the supplied approval.
+    """
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError('duplicate_review_field')
+        result[key] = value
+    return result
+
+
 def main(argv=None):
     """Read optional local review metadata and emit only non-sensitive gate names.
 
@@ -168,7 +186,8 @@ def main(argv=None):
             path = ordinary_file(root, args.review)
             if path is None or path.stat().st_size > 65536:
                 raise ValueError('review_unavailable_or_too_large')
-            review = json.loads(path.read_text(encoding='utf-8-sig'))
+            review = json.loads(path.read_text(encoding='utf-8-sig'),
+                                object_pairs_hook=unique_review_object)
         result = evaluate(root, review)
         print(json.dumps(result, indent=2))
         return 1 if result['invalid'] or result['access_denied'] else 0

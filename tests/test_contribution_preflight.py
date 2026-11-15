@@ -30,7 +30,7 @@ class ContributionPreflightTests(unittest.TestCase):
             'source_url': preflight.TARGET + '/issues/123',
             'consent_reference': 'private-fixture-consent-reference',
             'consent_scope': 'private-fixture-consent-scope',
-            'license': 'fixture-license-reference',
+            'license': 'MIT',
             'rights_review': 'private-fixture-rights-reference',
             'privacy_review': 'private-fixture-privacy-reference',
             'security_review': 'private-fixture-security-reference',
