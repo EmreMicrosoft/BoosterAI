@@ -20,6 +20,16 @@ def plan():
     return {'revision':'r1','goal':'visible value','next':'a','nodes':[{'id':'a','owner':'one','depends_on':[], 'status':'planned','acceptance':'value is visible','target':'real-terminal','revision':'r1'}]}
 
 class GuidanceTests(unittest.TestCase):
+    def test_administrator_assessment_is_bounded_and_not_automatic(self):
+        # Text-contract regression, not execution with administrator privileges.
+        text=(ROOT/'SKILL.md').read_text(encoding='utf-8')
+        section=text.split('### Requirement 24: assess administrator privileges',1)[1].split('At the start of a local coding task',1)[0]
+        for phrase in ('specific code', 'expected benefit and risks', 'least privilege necessary',
+                       'does not authorize elevation', 'required approval',
+                       'Never use administrator privileges to bypass', 'denied action',
+                       'continue independent authorized work'):
+            self.assertIn(phrase,section)
+
     def test_blocking_ambiguity_guidance_is_record_first_and_bounded(self):
         # Text-contract regression only, not proof of a future agent's behavior.
         for relative in ('SKILL.md','references/operating-algorithm.md'):
