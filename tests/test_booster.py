@@ -286,22 +286,38 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(report['legacy_root_location'],'_partials')
         self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
         self.assertEqual((existing.read_bytes(),existing.stat().st_ino,existing.stat().st_mtime_ns),before)
-    def test_partials_real_functions_then_integration(self):
+    def test_partials_consumer_uses_own_code_without_sample_dependencies(self):
         result=subprocess.run([sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),'partials-init','--root',str(self.root)],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         partials=self.root/'_boosterAI/_partials'
-        first=partials/'normalize_ab12cd34.py';first.write_text('def normalize(value):\n    """Normalize a text value for the project fixture.\n\n    Accept a string and return its stripped lower-case form without side effects.\n    A value without the string methods raises an error to the caller.\n    """\n    return value.strip().lower()\n')
-        # Execute the actual fixture function in its intended Python runtime before adding its dependent function.
-        probe='import sys; sys.path.insert(0,sys.argv[1]); from normalize_ab12cd34 import normalize; assert normalize("  ALICE ") == "alice"; print("normalized")'
-        checked=subprocess.run([sys.executable,'-I','-S','-B','-c',probe,str(partials)],capture_output=True,text=True)
-        self.assertEqual(checked.returncode,0,checked.stderr)
-        self.assertEqual(checked.stdout.strip(),'normalized')
-        second=partials/'greet_1f2e3d4c.py';second.write_text('from normalize_ab12cd34 import normalize\ndef greet(value):\n    """Compose a greeting for a supplied text value.\n\n    Normalize the input using the verified helper and return a new string.\n    This function has no side effects and propagates invalid input errors.\n    """\n    return "Hello " + normalize(value)\n')
-        app=self.root/'app.py';app.write_text('import sys\nfrom pathlib import Path\nsys.path.insert(0,str(Path(__file__).parent/"_boosterAI"/"_partials"))\nfrom greet_1f2e3d4c import greet\nprint(greet(sys.argv[1]))\n')
-        integrated=subprocess.run([sys.executable,'-I','-S','-B',str(app),' ALICE '],capture_output=True,text=True)
-        self.assertEqual(integrated.returncode,0,integrated.stderr)
-        self.assertEqual(integrated.stdout.strip(),'Hello alice')
-        self.assertTrue((partials/'README.md').is_file())
+        legacy=self.root/'_partials';legacy.mkdir()
+        samples=[]
+        for directory in (partials,legacy):
+            sample=directory/'normalize_ab12cd34.py'
+            sample.write_text('def normalize(value):\n    """Return stripped lowercase text without side effects."""\n    return value.strip().lower()\n')
+            samples.append(sample)
+        before={path:(path.read_bytes(),path.stat().st_mtime_ns) for path in samples}
+        # The consumer reads for guidance, then writes a separate product implementation.
+        for sample in samples:
+            self.assertIn('strip().lower()',sample.read_text())
+        app=self.root/'app.py'
+        app.write_text('import sys\ndef greet(value):\n    return "Hello " + value.strip().lower()\nprint(greet(sys.argv[1]))\n')
+        for phase in ('available','unavailable'):
+            if phase=='unavailable':
+                # Only this test's owned fixture directories are temporarily renamed.
+                partials.rename(partials.with_name('samples-unavailable'))
+                legacy.rename(legacy.with_name('legacy-unavailable'))
+            actual=subprocess.run([sys.executable,'-I','-S','-B',str(app),' ALICE '],capture_output=True,text=True)
+            self.assertEqual(actual.returncode,0,actual.stderr)
+            self.assertEqual(actual.stdout.strip(),'Hello alice')
+        for sample,(content,mtime) in before.items():
+            directory='samples-unavailable' if sample.parent==partials else 'legacy-unavailable'
+            preserved=sample.parent.with_name(directory)/sample.name
+            self.assertEqual((preserved.read_bytes(),preserved.stat().st_mtime_ns),(content,mtime))
+        guidance=(partials.with_name('samples-unavailable')/'README.md').read_text()
+        self.assertIn('read-only learning references',guidance)
+        self.assertIn('Never import, link, include, dynamically load or build against',guidance)
+
     def test_partials_refuses_missing_root_and_file_collision(self):
         with self.assertRaises(ValueError):b.partials_init(self.root/'absent')
         owned=self.root/'_boosterAI';owned.mkdir()

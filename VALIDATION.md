@@ -61,3 +61,10 @@ This record describes checks on the current package. It does not include private
 Before publishing, review the selected current files and every commit reachable from the intended refs. Run the offline publication scan with the owner's private terms and known prior commit identifiers kept out of public files. A no-match result is limited to the supplied inputs and supported patterns; it is not a complete privacy guarantee. Verify the actual remote refs and history after publication.
 
 The package does not grant source rights, authorize a third-party contribution, override access or safety decisions, or promise uninterrupted execution. A missing real target remains unverified.
+
+
+## Requirement 38: read-only examples
+
+The skill, workspace/partials references and new scaffold distinguish read-only consumers from authorized example maintenance. Product code must not import, link, include, dynamically load or build against either partials location. No OS permissions are changed. The regression consumer reads both locations, writes a separate product implementation and runs it with the sample locations available and unavailable, checking sample bytes and modification times are preserved. This is a controlled real Python consumer, not a universal dependency detector or proof of future agent compliance. Test and publication results are recorded separately.
+
+Requirement 38 focused results: four selected non-link Windows/Python 3.14 tests passed, including the real isolated consumer with both example locations unavailable and unchanged sample bytes/mtime. Package self-check passed and the pre-existing scratch set was unchanged. No excluded junction or policy-refused tests were run. The attempted combined publication command was rejected before execution; no new commit, push or remote CI result is claimed. The owner subsequently explicitly approved publishing this requirement; remote publication is verified separately.

@@ -13,6 +13,10 @@ Without either record option the helper scaffolds owned work but reports records
 
 The scaffold creates `_boosterAI/algorithm.md`, `_boosterAI/README.md` and `_boosterAI/_partials/README.md` when absent, preserving existing files. Existing nested partials and their README are reused without overwriting them. Report an existing project-root `_partials` as the legacy location and inspect its contents when appropriate; leave that location, its files and history in place. Do not silently move, delete, overwrite or duplicate an implementation. Preserve either existing README unchanged during initialization: its older scaffold guidance may predate the current standard. The initializer's `directory` and `index` report the nested standard, and `legacy_root_location` reports an existing root `_partials`. For compatibility, the old `legacy_location` field still reports whether `_boosterAI/_partials` existed before the call; that path is now the standard, so new callers should use `legacy_root_location` for the root location.
 
+## Read-only consumer boundary
+
+Code examples in project-root `_partials/` and `_boosterAI/_partials/` are standalone, read-only learning references for consuming tasks. Read them for guidance and implement the required behavior in the project's own production files outside both directories. Never import, link, include, dynamically load, build against, or create any runtime dependency on those examples. Reading does not authorize editing an example. Explicitly authorized example authors and maintainers may create or update examples separately; that does not make them production dependencies. This is a workflow contract, not an OS permission change or a universal dependency scanner. Index paths are discovery metadata, not import targets. Existing readmes are preserved during initialization even if their older guidance predates this rule; the current skill contract applies.
+
 ## Project-local partial and experience index
 
 When an owner requests a separate searchable project index, run:

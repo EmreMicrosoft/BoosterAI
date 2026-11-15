@@ -275,7 +275,8 @@ Prior partials in the project-root `_partials/`, if present, stay in place and m
 ## Rules
 Implement the first smallest independently invocable function. Keep one function's code in its own file when compatible with the existing module; preserve project conventions and working code. Use a short descriptive filename with a unique suffix, and a detailed function comment or docstring.
 Test through its real target before implementing the next dependent function. Use NOT_RUN, FAIL, AMBIGUOUS or VERIFIED with evidence, never infer success from a build.
-The consuming project's owner handles any needed assembly or later refactoring of archive pieces; the skill does not assume those tasks. Verify the resulting product through its actual entry point when integration is requested.
+Examples in project-root `_partials/` and `_boosterAI/_partials/` are standalone, read-only learning references for consuming tasks. Read them for guidance; write production implementations in the project's own source files outside both directories. Never import, link, include, dynamically load or build against these examples. Authorized example maintenance is a separate operation. This guidance does not change OS permissions or scan dependencies.
+Verify the consuming product through its actual entry point without sample-code dependencies.
 If per-step GitHub backup was requested and authorized, record remote/branch/commit and verified result; a failed push is BACKUP_FAILED, not success.
 '''
     # Exclusive creation avoids replacing an index created concurrently.
