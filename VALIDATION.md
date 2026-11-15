@@ -261,3 +261,7 @@ The selected Windows Python 3.14 run executed 388 tests and had one separate fai
 ## Read-only publication-tree review
 
 At source revision 400c380, the real offline publication scanner processed all 98 Git-tracked files using the owner's known project-specific term supplied privately through stdin. It reported NO_MATCH_REVIEW_REQUIRED with zero findings and exit 0. The scanner also checked its bundled credential and personal-path patterns. No old commit IDs were supplied, so this was not a history audit. No archived source was executed, no network operation was performed, and no content was changed by the scan. This bounded pattern result does not prove complete privacy, the absence of unknown private terms, or historical evidence authenticity.
+
+## Publication scanner private JSON failure
+
+A real local scanner invocation with a 60,001-byte nested JSON manifest returned an uncaught RecursionError traceback rather than its redacted error contract. JSON decoding now converts this case to ERROR / invalid_manifest with exit 2 and empty stderr. Three focused real-CLI tests (nested input, clean scan and detected findings) passed on Windows Python 3.12 and 3.14; fixture file bytes were preserved. No general resource-exhaustion protection or complete privacy guarantee is inferred. The broader suite was deliberately not rerun because its prior archive-stage move received a real access denial. Remote CI remains unverified under the outstanding API restriction.

@@ -199,7 +199,7 @@ def main(argv=None):
             raise ScanError('invalid_manifest')
         try:
             manifest = json.loads(raw.decode('utf-8-sig'))
-        except (UnicodeError, ValueError) as error:
+        except (UnicodeError, ValueError, RecursionError) as error:
             raise ScanError('invalid_manifest') from error
         result = scan_manifest(root, manifest)
         print(json.dumps(result, sort_keys=True))

@@ -37,6 +37,20 @@ class PublicationScanTests(unittest.TestCase):
                               input=json.dumps(manifest), text=True, capture_output=True,
                               cwd=ROOT)
 
+    def test_deep_json_returns_redacted_manifest_error(self):
+        payload = '[' * 30000 + '0' + ']' * 30000
+        self.assertLess(len(payload.encode('utf-8')), scanner.MAX_INPUT_BYTES)
+        before = self.file.read_bytes()
+        result = subprocess.run(
+            [sys.executable, '-I', '-S', '-B', str(SCRIPT), '--root', str(self.directory)],
+            input=payload, text=True, capture_output=True, cwd=ROOT)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr, '')
+        self.assertEqual(json.loads(result.stdout), {
+            'status': 'ERROR', 'error': 'invalid_manifest', 'privacy_proven': False})
+        self.assertNotIn(str(self.directory), result.stdout)
+        self.assertEqual(self.file.read_bytes(), before)
+
     def test_real_cli_clean_requires_manual_privacy_review(self):
         before = self.file.read_bytes()
         result = self.cli(self.manifest)
