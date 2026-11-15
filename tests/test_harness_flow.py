@@ -128,9 +128,10 @@ class HarnessFlowTests(unittest.TestCase):
         observed = harness.reconcile(self.root, 'plan.json', 'a', item['run_id'])
         self.assertEqual(observed['status'], 'AMBIGUOUS')
         reviewed = harness.reconcile(self.root, 'plan.json', 'a', item['run_id'], True)
-        self.assertEqual(reviewed['status'], 'ACTIVE')
+        self.assertEqual(reviewed['status'], 'AMBIGUOUS')
         self.assertFalse(reviewed['external_effects_authenticated'])
-        self.assertEqual(self.verify(item, self.fake_result())['status'], 'VERIFIED')
+        with self.assertRaisesRegex(ValueError, 'effect review'):
+            self.verify(item, self.fake_result())
 
     def test_dependency_blocks_then_changed_code_stales_dependent(self):
         with self.assertRaisesRegex(ValueError, 'prerequisite'):
@@ -271,7 +272,10 @@ class HarnessFlowTests(unittest.TestCase):
             'access_denied': True, 'success': False}), encoding='utf-8')
         harness.reconcile(self.root, 'plan.json', 'a', item['run_id'])
         reviewed = harness.reconcile(self.root, 'plan.json', 'a', item['run_id'], True)
-        self.assertEqual(reviewed['status'], 'DENIED')
+        self.assertEqual(reviewed['status'], 'AMBIGUOUS')
+        current = harness.status(self.root, 'plan.json')['tasks']['a']
+        self.assertTrue(current['access_denial']['retry_prohibited'])
+        self.assertTrue(current['access_denial']['child_outcome_unknown'])
         with self.assertRaisesRegex(ValueError, 'denied'):
             self.verify(item, self.fake_result())
 

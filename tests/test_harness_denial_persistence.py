@@ -113,6 +113,75 @@ class DenialPersistenceTests(unittest.TestCase):
         self.assertIs(caught.exception.__cause__, self.denial)
         self.assertEqual(calls, ['VERIFYING', 'AMBIGUOUS'])
         self.assertEqual(self.memory.data['tasks']['B']['status'], 'VERIFYING')
+        # Reload the last durable state: its lost denial marker must not make
+        # an attempted, unexplained verifier eligible for replay.
+        self.assertNotIn('access_denial', self.memory.data['tasks']['B'])
+        self.assertEqual(h.status(ROOT, 'plan.json')['tasks']['B']['status'], 'AMBIGUOUS')
+        with patch.object(h._CORE, '_path', return_value=(ROOT / 'missing.json', False)):
+            self.assertEqual(self.memory.review()['status'], 'AMBIGUOUS')
+        # A report may already exist when a later host refusal cannot be saved.
+        # Even this late success is not evidence that replay is authorized.
+        late = {'success': True, 'tests_run': 1, 'access_denied': False}
+        with patch.object(h._CORE, '_path', return_value=(ROOT / 'late.json', True)), \
+             patch.object(h, '_report', return_value=(late, 'hash', 'identity')):
+            self.assertEqual(self.memory.review()['status'], 'AMBIGUOUS')
+        with self.assertRaisesRegex(ValueError, 'requires effect review'):
+            self.memory.verify('B')
+        with self.assertRaisesRegex(ValueError, 'another task'):
+            self.memory.verify('A')
+        self.assertEqual(self.run.call_count, 1)
+
+    def test_attempt_without_scratch_or_report_keeps_unknown_outcome(self):
+        """Missing metadata is not evidence that an attempted verifier is safe."""
+        item = self.memory.data['tasks']['B']
+        item.update(status='AMBIGUOUS', attempts=1, scratch=None)
+        self.assertEqual(self.memory.review()['status'], 'AMBIGUOUS')
+        self.run.assert_not_called()
+
+    def test_unrecognized_report_does_not_reopen_attempt(self):
+        """An unreadable or invalid report cannot explain an interrupted run."""
+        item = self.memory.data['tasks']['B']
+        item.update(status='AMBIGUOUS', attempts=1, scratch='_temp-files/unused-denial')
+        with patch.object(h._CORE, '_path', return_value=(ROOT / 'invalid.json', True)), \
+             patch.object(h, '_report', return_value=None):
+            self.assertEqual(self.memory.review()['status'], 'AMBIGUOUS')
+        self.run.assert_not_called()
+
+    def test_late_non_denial_reports_never_authorize_replay(self):
+        """Success, zero tests and failure cannot prove the missing host outcome."""
+        for success, count in ((True, 1), (False, 0), (False, 1)):
+            with self.subTest(success=success, tests_run=count):
+                report = {'success': success, 'tests_run': count, 'access_denied': False}
+                self.memory.data['tasks']['B'].update(
+                    status='AMBIGUOUS', attempts=1, scratch='_temp-files/unused-denial')
+                with patch.object(h._CORE, '_path', return_value=(ROOT / 'late.json', True)), \
+                     patch.object(h, '_report', return_value=(report, 'hash', 'identity')):
+                    self.assertEqual(self.memory.review()['status'], 'AMBIGUOUS')
+                item = self.memory.data['tasks']['B']
+                self.assertEqual(item['verification']['report'], report)
+                self.assertFalse(item['verification']['replay_authorized'])
+                with self.assertRaisesRegex(ValueError, 'requires effect review'):
+                    self.memory.verify('B')
+        self.run.assert_not_called()
+
+    def test_late_denial_report_retains_slot_and_prohibits_replay(self):
+        """A late denial cannot prove child reaping or release the executor."""
+        report = {'success': False, 'tests_run': 1, 'access_denied': True}
+        self.memory.data['tasks']['B'].update(
+            status='AMBIGUOUS', attempts=1, scratch='_temp-files/unused-denial')
+        with patch.object(h._CORE, '_path', return_value=(ROOT / 'late.json', True)), \
+             patch.object(h, '_report', return_value=(report, 'hash', 'identity')):
+            self.assertEqual(self.memory.review()['status'], 'AMBIGUOUS')
+        item = self.memory.data['tasks']['B']
+        self.assertTrue(item['access_denial']['retry_prohibited'])
+        self.assertTrue(item['access_denial']['child_outcome_unknown'])
+        with self.assertRaisesRegex(ValueError, 'access denial'):
+            h.reconcile(ROOT, 'plan.json', 'B', 'B')
+        with self.assertRaisesRegex(ValueError, 'another task'):
+            self.memory.verify('A')
+        with self.assertRaisesRegex(ValueError, 'requires effect review'):
+            self.memory.verify('B')
+        self.run.assert_not_called()
 
     def test_stop_state_write_denial_is_not_retried(self):
         """A failed STOP write is never retried under a different status."""

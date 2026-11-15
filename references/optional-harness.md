@@ -60,7 +60,19 @@ interrupted verifier is `AMBIGUOUS`, not an automatic retry. After a failure or
 interruption, run `reconcile` once to observe declared files and inspect actual
 effects. Only after the host has reviewed those effects may it run
 `reconcile ... --effects-reviewed`; the file observations must still match. This
-is a host declaration, not proof of external effects or permission. Following
+is a host declaration, not proof of external effects or permission. If an
+attempted verifier has an unknown outcome, it remains `AMBIGUOUS` and retains
+the executor slot even after file review. A late report is preserved as observed
+evidence, not permission to replay. A late report declaring access denial records
+a no-retry marker while retaining `AMBIGUOUS`: it does not prove child reaping
+and must not release the executor slot. Even a late successful or failed
+report cannot prove the child was reaped or exclude a later refusal whose state
+write failed. This deliberately restricts automatic recovery: a durably recorded
+`FAILED` still has its separate changed-condition retry path, but an attempted
+`AMBIGUOUS` run has no force-recovery command. This
+does not provide durable denial recording when the initial state write itself
+failed. The host must preserve that refusal outside the failed operation and
+must not retry it. Following
 `FAILED`, a declared file or verifier must also change after the failure's own
 post-test snapshot before an explicitly requested retry is allowed. A test's own
 side effects do not count as that change. External-only changes cannot satisfy

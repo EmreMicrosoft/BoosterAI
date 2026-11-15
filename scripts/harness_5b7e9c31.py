@@ -290,23 +290,35 @@ def reconcile(root, source, identifier, run_id, effects_reviewed=False):
         original_status = item['status']
         item['status'] = ('ACTIVE' if effects_reviewed else
                           'FAILED' if original_status == 'FAILED' else 'AMBIGUOUS')
-        # A completed failure report can explain an interrupted verifier, but a
-        # late success cannot prove exit status or before/after freshness.
-        if effects_reviewed and original_status == 'AMBIGUOUS' and item.get('scratch'):
-            relative = item['scratch'] + '/result.json'
-            path, exists = _CORE._path(root, relative)
-            observed = _report(root, path, item['case']) if exists else None
+        # A late report cannot prove child reaping or exclude a later refusal
+        # whose state write failed. Only durable FAILED has the retry path.
+        if effects_reviewed and original_status == 'AMBIGUOUS' and item.get('attempts', 0) > 0:
+            observed = None
+            if item.get('scratch'):
+                relative = item['scratch'] + '/result.json'
+                path, exists = _CORE._path(root, relative)
+                observed = _report(root, path, item['case']) if exists else None
             report = observed[0] if observed else None
-            if report and report['access_denied']:
-                item['status'] = 'DENIED'
+            if report is None:
+                # A failed denial-state write can leave only VERIFYING on disk.
+                # File review cannot establish why its verifier disappeared or
+                # whether a refusal occurred. Preserve the slot, not replay.
+                item['status'] = 'AMBIGUOUS'
+            elif report['access_denied']:
+                # The report prohibits replay but does not prove that the
+                # disappeared verifier or its child has stopped. Keep its slot.
+                item['status'] = 'AMBIGUOUS'
+                item['access_denial'] = {'retry_prohibited': True,
+                                         'child_outcome_unknown': True,
+                                         'stop_outcome_unknown': bool(data['stopped'])}
                 item['verification'] = {'case': item['case'], 'report': report,
-                                        'elapsed_seconds': None, 'reconciled': True}
-            elif report and not report['success'] and report['tests_run'] > 0:
-                item['retry_requires_change'] = True
-                item['failed_files'] = current
-                item['failed_tools'] = _tool_snapshot()
+                                        'elapsed_seconds': None, 'reconciled': True,
+                                        'replay_authorized': False}
+            else:
+                item['status'] = 'AMBIGUOUS'
                 item['verification'] = {'case': item['case'], 'report': report,
-                                        'elapsed_seconds': None, 'reconciled': True}
+                                        'elapsed_seconds': None, 'reconciled': True,
+                                        'replay_authorized': False}
         # A host-reviewed task whose verifier never ran can yield the serial
         # slot to a stale prerequisite. Never infer orphaned work is finished.
         if (effects_reviewed and item['status'] == 'ACTIVE'

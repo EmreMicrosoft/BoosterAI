@@ -101,7 +101,8 @@ class WaitingPrerequisiteTests(unittest.TestCase):
                 self.data['tasks']['B'][field] = value
                 # No scratch report read should be necessary for this test.
                 with patch.object(h._CORE, '_path', return_value=(ROOT / 'unused', False)):
-                    self.assertEqual(self.review()['status'], 'ACTIVE')
+                    expected = 'AMBIGUOUS' if field == 'attempts' else 'ACTIVE'
+                    self.assertEqual(self.review()['status'], expected)
                 self.data = original
 
     def test_stop_denial_and_stale_contract_are_not_resumed(self):
