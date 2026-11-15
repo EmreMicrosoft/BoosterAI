@@ -152,38 +152,49 @@ def _revision(card, snapshot, case, tools):
     return _digest({'card': card, 'files': snapshot, 'case': case, 'tools': tools})
 
 
-def _fresh(root, tasks, cards, identifier, visited=None):
-    """Check a verified card and its predecessors against current declared bytes.
+def _fresh(root, tasks, cards, identifier, visited=None, *, context=None):
+    """Check one graph observation, memoizing only within this read operation.
 
-    Only the changed card and dependent cards become stale. Unrelated source
-    changes do not invalidate a card whose contract and declared files match.
-    This checks evidence freshness, not the honesty or quality of the test.
+    A shared refresh context checks each reachable card once and reads the tool
+    snapshot once. It is never persisted or reused by a later operation: changed
+    files, rules and task states are observed again. Cycles fail closed. This is
+    evidence freshness, not proof of test quality or an atomic filesystem view.
     """
+    context = {'results': {}} if context is None else context
     visited = set() if visited is None else visited
     if identifier in visited:
         return False
+    results = context['results']
+    if identifier in results:
+        return results[identifier]
     visited.add(identifier)
-    item = tasks.get(identifier)
-    card = cards.get(identifier)
-    if not isinstance(item, dict) or item.get('status') != 'VERIFIED' or card is None:
-        return False
-    if item.get('card_sha256') != _digest(card):
-        return False
-    if _snapshot(root, card, item['test']) != item.get('verified_files'):
-        return False
-    if _tool_snapshot() != item.get('verified_tools'):
-        return False
-    for dependency in card['depends_on']:
-        if not _fresh(root, tasks, cards, dependency, set(visited)):
-            return False
-    return True
+    try:
+        item = tasks.get(identifier)
+        card = cards.get(identifier)
+        fresh = (isinstance(item, dict) and item.get('status') == 'VERIFIED'
+                 and card is not None and item.get('card_sha256') == _digest(card))
+        if fresh:
+            fresh = _snapshot(root, card, item['test']) == item.get('verified_files')
+        if fresh:
+            if 'tools' not in context:
+                context['tools'] = _tool_snapshot()
+            fresh = context['tools'] == item.get('verified_tools')
+        if fresh:
+            fresh = all(_fresh(root, tasks, cards, dependency, visited, context=context)
+                        for dependency in card['depends_on'])
+        results[identifier] = fresh
+        return fresh
+    finally:
+        visited.remove(identifier)
 
 
 def _refresh(root, data, cards):
-    """Persistently mark invalidated verified observations stale in memory."""
+    """Evaluate a shared graph observation before marking invalid cards stale."""
     tasks = data['tasks']
+    context = {'results': {}}
     stale = [name for name, item in tasks.items()
-             if item.get('status') == 'VERIFIED' and not _fresh(root, tasks, cards, name)]
+             if item.get('status') == 'VERIFIED'
+             and not _fresh(root, tasks, cards, name, context=context)]
     for name in stale:
         tasks[name]['status'] = 'STALE'
     return stale

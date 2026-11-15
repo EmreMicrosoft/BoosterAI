@@ -113,3 +113,22 @@ The approved wording is preserved in SKILL.md and linked to bounded host-execute
 The harness now fingerprints SKILL.md, AGENTS.md and the explicit bundled reference manifest alongside its verifier implementation. Changing a rule invalidates older acceptance observations; adding a new bundled reference requires updating the manifest and is guarded by a coverage regression. Three focused tests passed on Windows/Python 3.12 and 3.14: actual current file hashing, synthetic per-rule invalidation, and unchanged-rule freshness. The invalidation tests mock project snapshots and changed hashes; they do not constitute a new Codex session, hook execution, or real product acceptance. Previous pilot evidence is stale after this verifier change.
 
 The established selected regression suite passed 351 tests on Windows/Python 3.14, excluding 14 individual cases and three candidate modules. This is not full discovery or real Codex acceptance. Independent source review found no blocker in this narrow change; repeated graph hashing remains a separate performance limitation.
+
+### Per-observation harness graph freshness
+
+The freshness walk now memoizes each reachable card within one refresh operation
+and reads the common tool/rule snapshot once. The cache is discarded after that
+operation, so later file, policy or state changes are observed again. Cycles and
+missing/unverified dependencies fail closed; statuses are updated after graph
+observation. This is not an atomic filesystem snapshot or a host integration claim.
+
+Six isolated regression tests passed on Windows Python 3.12 and 3.14: a layered
+25-card graph in both insertion orders observes each card once, later file/rule
+changes invalidate affected evidence, unrelated cards remain verified, cycles
+and missing/failed prerequisites fail closed, and read exceptions restore the
+active recursion path. The selected Windows Python 3.14 suite passed 356 tests
+before the final exception-path test was added; the final six focused tests were
+then rerun successfully. Fourteen cases and three candidate modules remain
+excluded. Real Codex/host acceptance was not rerun; prior harness evidence is
+STALE after the verifier change. Recursive depth and separate standalone freshness
+calls are not optimized by this change.
