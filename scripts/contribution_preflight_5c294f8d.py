@@ -176,7 +176,7 @@ def main(argv=None):
         print(json.dumps({'status': 'NOT_READY', 'error': 'access_denied',
                           'pr_status': 'NOT_RUN', 'pr_created': False}))
         return 1
-    except (OSError, ValueError, TypeError, UnicodeError, json.JSONDecodeError):
+    except (OSError, ValueError, TypeError, UnicodeError, json.JSONDecodeError, RecursionError):
         print(json.dumps({'status': 'NOT_READY', 'error': 'invalid_or_unavailable_input',
                           'pr_status': 'NOT_RUN', 'pr_created': False}))
         return 1

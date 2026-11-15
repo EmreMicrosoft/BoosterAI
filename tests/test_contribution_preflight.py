@@ -137,6 +137,21 @@ class ContributionPreflightTests(unittest.TestCase):
         self.assertNotEqual(outside.returncode, 0)
         self.assertNotIn('private-fixture', outside.stdout + outside.stderr)
 
+    def test_deep_json_fails_privately_without_traceback_or_mutation(self):
+        path = self.directory / 'private-deep-review.json'
+        content = '[' * 30000 + '0' + ']' * 30000
+        self.assertLess(len(content.encode('utf-8')), 65536)
+        path.write_text(content, encoding='utf-8')
+        result = self.run_cli('--review', path.relative_to(ROOT).as_posix())
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stderr, '', 'private CLI must not emit a traceback')
+        self.assertEqual(json.loads(result.stdout), {
+            'status': 'NOT_READY', 'error': 'invalid_or_unavailable_input',
+            'pr_status': 'NOT_RUN', 'pr_created': False})
+        self.assertNotIn(str(ROOT), result.stdout)
+        self.assertNotIn('private-deep-review', result.stdout)
+        self.assertEqual(path.read_text(encoding='utf-8'), content)
+
     def test_hardlinked_evidence_is_rejected(self):
         alias = self.directory / 'alias.txt'
         alias.hardlink_to(self.evidence)
