@@ -190,3 +190,16 @@ caller-reported; the separate host output provides the installed-SDK observation
 No SDK was installed, no project was retargeted or built, and no new scratch
 directory remained. Installed SDK availability is now observed; project SDK
 selection, .NET product acceptance and Codex host integration remain NOT_RUN.
+
+### Transitive verifier dependency fingerprint
+
+The harness loads harness_state, which imports project_tools, which imports
+archive_profile. The last file was absent from the tool fingerprint and is now
+included. An AST regression checks current local plain imports and literal
+`_load`/`with_name` loader references against the manifest; it is not a general
+dynamic-import or missing-file analyzer. A separate mocked-hash regression
+checks that changing any listed tool invalidates prior verified observations.
+Both tests passed on Python 3.12 and 3.14; the selected Windows Python 3.14 suite
+passed 377 tests (14 cases and 3 candidate modules excluded). Independent review
+confirmed the actual import chain. No real host/acceptance runner was launched
+by these focused tests; prior harness evidence is STALE after this correction.

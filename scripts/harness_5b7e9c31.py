@@ -46,7 +46,7 @@ _MAX_REPORT = 65536
 _TOOL_FILES = ('scripts/harness_5b7e9c31.py', 'scripts/harness_state_2fc47a91.py',
                'scripts/harness_unittest_b913ed42.py', 'scripts/task_cards_a61e2c97.py',
                'scripts/continuity_plan_64e9b1c2.py', 'scripts/claim_guard_8d31f72a.py',
-               'scripts/project_tools.py')
+               'scripts/project_tools.py', 'scripts/archive_profile.py')
 _POLICY_FILES = ('SKILL.md', 'AGENTS.md',
                  'references/community-contributions.md',
                  'references/daily-archive-sync.md',
