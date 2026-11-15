@@ -132,3 +132,22 @@ then rerun successfully. Fourteen cases and three candidate modules remain
 excluded. Real Codex/host acceptance was not rerun; prior harness evidence is
 STALE after the verifier change. Recursive depth and separate standalone freshness
 calls are not optimized by this change.
+
+### Failed dependent yielding for prerequisite repair
+
+After a durably completed FAILED attempt and the existing two-step unchanged
+file-effect review, a dependent with a stale prerequisite can now enter
+WAITING_PREREQUISITE rather than occupying the serial ACTIVE slot indefinitely.
+Its failure baselines, attempts, history and run identity are retained. Fresh
+prerequisite acceptance and a changed declared input or verifier are still
+required before another attempt. Ambiguous work, access denial and STOP are not
+released by this rule. External effects are not authenticated by file review.
+
+Twelve focused in-memory public-API regression tests passed on Windows Python
+3.12 and 3.14, including inherited never-run recovery barriers. They cover
+failed-dependent yielding, prerequisite repair gating, unchanged retry rejection,
+review ordering, denied/ambiguous preservation and attempt/time/STOP limits.
+The selected Windows Python 3.14 suite passed 368 tests before the final focused
+limit test was added; the final twelve tests were then rerun. Fourteen cases and
+three candidate modules remain excluded. No real verifier, Codex host or access
+refusal was invoked by the new focused tests. Prior pilot evidence remains STALE.

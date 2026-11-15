@@ -351,11 +351,20 @@ def reconcile(root, source, identifier, run_id, effects_reviewed=False):
                 item['verification'] = {'case': item['case'], 'report': report,
                                         'elapsed_seconds': None, 'reconciled': True,
                                         'replay_authorized': False}
-        # A host-reviewed task whose verifier never ran can yield the serial
-        # slot to a stale prerequisite. Never infer orphaned work is finished.
+        # Only never-run work or a durably completed FAILED attempt may yield
+        # the serial slot. Ambiguous/orphaned verifiers retain their slot. Keep
+        # failed baselines and retry gates so yielding never authorizes replay.
+        never_run = (item.get('attempts') == 0 and item.get('verification') is None
+                     and item.get('scratch') is None and not item.get('retry_requires_change'))
+        completed_failure = (
+            original_status == 'FAILED' and item.get('attempts', 0) > 0
+            and item.get('retry_requires_change') is True
+            and isinstance(item.get('failed_files'), dict)
+            and isinstance(item.get('failed_tools'), dict)
+            and isinstance(item.get('verification'), dict)
+            and item['verification'].get('outcome') == 'FAILED')
         if (effects_reviewed and item['status'] == 'ACTIVE'
-                and item.get('attempts') == 0 and item.get('verification') is None
-                and item.get('scratch') is None and not item.get('retry_requires_change')
+                and (never_run or completed_failure)
                 and not all(_fresh(root, data['tasks'], cards, dep)
                             for dep in cards[identifier]['depends_on'])):
             item['status'] = 'WAITING_PREREQUISITE'
