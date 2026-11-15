@@ -224,19 +224,72 @@ class CollectorTests(unittest.TestCase):
         self.assertIn('root link forbidden',json.loads(cli.stdout)['error'])
         with self.assertRaisesRegex(ValueError,'root link forbidden'):b.schema_status(junction)
         self.assertEqual(marker.read_text(),'preserve')
+    def test_partials_init_new_standard_and_idempotence(self):
+        first=b.partials_init(self.root)
+        index=self.root/'_boosterAI/_partials/README.md'
+        self.assertTrue(first['created'])
+        self.assertFalse(first['preserved_existing'])
+        self.assertEqual(first['directory'],'_boosterAI/_partials')
+        self.assertEqual(first['index'],'_boosterAI/_partials/README.md')
+        self.assertIsNone(first['legacy_location'])
+        self.assertIsNone(first['legacy_root_location'])
+        self.assertTrue(index.is_file())
+        self.assertFalse((self.root/'_partials').exists())
+        original=index.read_bytes();before=index.stat()
+        second=b.partials_init(self.root)
+        after=index.stat()
+        self.assertFalse(second['created'])
+        self.assertTrue(second['preserved_existing'])
+        self.assertEqual(second['legacy_location'],'_boosterAI/_partials')
+        self.assertIsNone(second['legacy_root_location'])
+        self.assertEqual(index.read_bytes(),original)
+        self.assertEqual((after.st_ino,after.st_size,after.st_mtime_ns),
+                         (before.st_ino,before.st_size,before.st_mtime_ns))
+
     def test_partials_init_preserves_existing(self):
-        legacy=self.root/'_boosterAI/_partials';legacy.mkdir(parents=True)
-        (legacy/'README.md').write_text('legacy owner notes\n')
-        first=b.partials_init(self.root);self.assertTrue(first['created'])
+        standard=self.root/'_boosterAI/_partials';standard.mkdir(parents=True)
+        legacy=self.root/'_partials';legacy.mkdir()
+        files={standard/'README.md':b'existing standard notes\n',
+               standard/'piece.py':b'existing standard code\n',
+               legacy/'README.md':b'existing legacy notes\n',
+               legacy/'piece.py':b'existing legacy code\n'}
+        for path,content in files.items():path.write_bytes(content)
+        before={path:(path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns) for path in files}
+        first=b.partials_init(self.root)
+        second=b.partials_init(self.root)
+        self.assertFalse(first['created']);self.assertFalse(second['created'])
         self.assertEqual(first['legacy_location'],'_boosterAI/_partials')
-        index=self.root/'_partials/README.md';index.write_text('existing owner notes\n')
-        second=b.partials_init(self.root);self.assertFalse(second['created'])
-        self.assertEqual(index.read_text(),'existing owner notes\n')
-        self.assertEqual((legacy/'README.md').read_text(),'legacy owner notes\n')
+        self.assertEqual(first['legacy_root_location'],'_partials')
+        self.assertEqual(first['index'],'_boosterAI/_partials/README.md')
+        for path,original in before.items():
+            self.assertEqual((path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns),original)
+
+    def test_partials_init_preserves_legacy_root_file(self):
+        legacy=self.root/'_partials';legacy.write_bytes(b'owner file is not a directory')
+        before=(legacy.read_bytes(),legacy.stat().st_ino,legacy.stat().st_mtime_ns)
+        first=b.partials_init(self.root)
+        self.assertTrue(first['created'])
+        self.assertIsNone(first['legacy_location'])
+        self.assertEqual(first['legacy_root_location'],'_partials')
+        self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
+        self.assertEqual((legacy.read_bytes(),legacy.stat().st_ino,legacy.stat().st_mtime_ns),before)
+        self.assertFalse(b.partials_init(self.root)['created'])
+        self.assertEqual((legacy.read_bytes(),legacy.stat().st_ino,legacy.stat().st_mtime_ns),before)
+
+    def test_partials_init_preserves_legacy_directory_when_standard_is_missing(self):
+        legacy=self.root/'_partials';legacy.mkdir()
+        existing=legacy/'README.md';existing.write_bytes(b'legacy project notes')
+        before=(existing.read_bytes(),existing.stat().st_ino,existing.stat().st_mtime_ns)
+        report=b.partials_init(self.root)
+        self.assertTrue(report['created'])
+        self.assertIsNone(report['legacy_location'])
+        self.assertEqual(report['legacy_root_location'],'_partials')
+        self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
+        self.assertEqual((existing.read_bytes(),existing.stat().st_ino,existing.stat().st_mtime_ns),before)
     def test_partials_real_functions_then_integration(self):
         result=subprocess.run([sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),'partials-init','--root',str(self.root)],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-        partials=self.root/'_partials'
+        partials=self.root/'_boosterAI/_partials'
         first=partials/'normalize_ab12cd34.py';first.write_text('def normalize(value):\n    """Normalize a text value for the project fixture.\n\n    Accept a string and return its stripped lower-case form without side effects.\n    A value without the string methods raises an error to the caller.\n    """\n    return value.strip().lower()\n')
         # Execute the actual fixture function in its intended Python runtime before adding its dependent function.
         probe='from normalize_ab12cd34 import normalize; assert normalize("  ALICE ") == "alice"; print("normalized")'
@@ -244,16 +297,17 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(checked.returncode,0,checked.stderr)
         self.assertEqual(checked.stdout.strip(),'normalized')
         second=partials/'greet_1f2e3d4c.py';second.write_text('from normalize_ab12cd34 import normalize\ndef greet(value):\n    """Compose a greeting for a supplied text value.\n\n    Normalize the input using the verified helper and return a new string.\n    This function has no side effects and propagates invalid input errors.\n    """\n    return "Hello " + normalize(value)\n')
-        app=self.root/'app.py';app.write_text('import sys\nfrom pathlib import Path\nsys.path.insert(0,str(Path(__file__).parent/"_partials"))\nfrom greet_1f2e3d4c import greet\nprint(greet(sys.argv[1]))\n')
+        app=self.root/'app.py';app.write_text('import sys\nfrom pathlib import Path\nsys.path.insert(0,str(Path(__file__).parent/"_boosterAI"/"_partials"))\nfrom greet_1f2e3d4c import greet\nprint(greet(sys.argv[1]))\n')
         integrated=subprocess.run([sys.executable,'-I','-S','-B',str(app),' ALICE '],capture_output=True,text=True)
         self.assertEqual(integrated.returncode,0,integrated.stderr)
         self.assertEqual(integrated.stdout.strip(),'Hello alice')
         self.assertTrue((partials/'README.md').is_file())
     def test_partials_refuses_missing_root_and_file_collision(self):
         with self.assertRaises(ValueError):b.partials_init(self.root/'absent')
-        (self.root/'_partials').write_text('do not overwrite')
+        owned=self.root/'_boosterAI';owned.mkdir()
+        collision=owned/'_partials';collision.write_text('do not overwrite')
         with self.assertRaises(OSError):b.partials_init(self.root)
-        self.assertEqual((self.root/'_partials').read_text(),'do not overwrite')
+        self.assertEqual(collision.read_text(),'do not overwrite')
     def test_workspace_real_cli_and_preservation(self):
         source=self.root/'existing-schema.md';source.write_text('# Existing schema\nunchanged source')
         record=self.root/'existing-record.md';record.write_text('existing record owner')
@@ -263,7 +317,9 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual((self.root/'_boosterAI/algorithm.md').read_bytes(),source.read_bytes())
         self.assertEqual(record.read_text(),'existing record owner')
         self.assertFalse((self.root/'PROJECT_RECORDS.md').exists())
-        self.assertTrue((self.root/'_partials/README.md').is_file())
+        self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
+        self.assertFalse((self.root/'_partials').exists())
+        self.assertIn('`_partials/README.md`',(self.root/'_boosterAI/README.md').read_text())
         self.assertFalse(b.schema_status(self.root)['source_changed'])
         source.write_text('updated original')
         self.assertTrue(b.schema_status(self.root)['source_changed'])
@@ -278,6 +334,44 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(record.read_text(),'user added history')
         self.assertEqual(algorithm.read_text(),'owner algorithm')
         with self.assertRaises(ValueError):b.workspace_init(self.root,records_existing='PROJECT_RECORDS.md',create_records=True)
+
+    def test_workspace_new_cli_scaffolds_only_nested_partials(self):
+        args=[sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),
+              'workspace-init','--root',str(self.root),'--create-records']
+        result=subprocess.run(args,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        report=json.loads(result.stdout)
+        self.assertEqual(report['directory'],'_boosterAI/_partials')
+        self.assertEqual(report['index'],'_boosterAI/_partials/README.md')
+        self.assertTrue(report['created'])
+        self.assertTrue((self.root/'PROJECT_RECORDS.md').is_file())
+        self.assertTrue((self.root/'_boosterAI/algorithm.md').is_file())
+        self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
+        self.assertFalse((self.root/'_partials').exists())
+
+    def test_workspace_cli_preserves_existing_overview_and_both_partials(self):
+        standard=self.root/'_boosterAI/_partials';standard.mkdir(parents=True)
+        legacy=self.root/'_partials';legacy.mkdir()
+        files={self.root/'existing-record.md':b'existing project record',
+               self.root/'_boosterAI/algorithm.md':b'existing algorithm',
+               self.root/'_boosterAI/README.md':b'existing workspace overview',
+               standard/'README.md':b'existing standard index',
+               standard/'piece.py':b'existing standard source',
+               legacy/'README.md':b'existing legacy index',
+               legacy/'piece.py':b'existing legacy source'}
+        for path,content in files.items():path.write_bytes(content)
+        before={path:(path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns) for path in files}
+        args=[sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),
+              'workspace-init','--root',str(self.root),'--records-existing','existing-record.md']
+        result=subprocess.run(args,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        report=json.loads(result.stdout)
+        self.assertFalse(report['created'])
+        self.assertEqual(report['legacy_location'],'_boosterAI/_partials')
+        self.assertEqual(report['legacy_root_location'],'_partials')
+        self.assertEqual(report['index'],'_boosterAI/_partials/README.md')
+        for path,original in before.items():
+            self.assertEqual((path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns),original)
     def test_cli_real_process(self):
         p=self.root/'plan.json';p.write_text(json.dumps(plan()))
         result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/booster.py'),'validate',str(p)],capture_output=True,text=True)

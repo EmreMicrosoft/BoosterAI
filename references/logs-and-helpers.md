@@ -27,9 +27,9 @@ The purge revalidates the whole batch before touching anything, then rechecks id
 
 This is invocation-driven, not a background daemon. When no host/user approval route is available, continue independent authorized work and report the precise retention blocker. Do not log secrets or ask unnecessary approval for routine logging; only the destructive batch needs this action-time step.
 ## Immutable versioned helpers
-When the same authorized work recurs, prefer a small project-specific static helper under `_boosterAI/helpers/NAME/VERSION/` rather than rewriting ad-hoc commands. First implement and actually test the helper in the intended runtime. Register a project-root partial and evidence:
+When the same authorized work recurs, prefer a small project-specific static helper under `_boosterAI/helpers/NAME/VERSION/` rather than rewriting ad-hoc commands. First implement and actually test the helper in the intended runtime. Register a project-relative partial and evidence:
 ```
-python scripts/project_tools.py register-helper --root PROJECT --name normalize --version 1.0.0 --source _partials/normalize_ab12cd34.py --source-scope project --evidence evidence/normalize.txt --target "Python CLI"
+python scripts/project_tools.py register-helper --root PROJECT --name normalize --version 1.0.0 --source _boosterAI/_partials/normalize_ab12cd34.py --source-scope project --evidence evidence/normalize.txt --target "Python CLI"
 python scripts/project_tools.py check-helper --root PROJECT --name normalize --version 1.0.0
 ```
 `--source-scope project` resolves the source within the project root; the default `workspace` preserves the earlier `_boosterAI/`-relative source behavior. Evidence remains relative to `_boosterAI/` in both cases. Both scopes reject traversal, links, reparse points and hard links. Registration copies exact source bytes to a versioned file with a short descriptive name and a deterministic, collision-checked suffix. It records the source scope and location, code and evidence hashes, tested target and timestamp. The source is not moved.

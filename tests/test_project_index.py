@@ -1,5 +1,6 @@
 """Project-local index behavior through real CLI and guarded failure paths."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -73,12 +74,88 @@ class ProjectIndexTests(unittest.TestCase):
         self.assertEqual(list(self.scratch.iterdir()),[])
 
     def test_unknown_or_custom_index_is_preserved(self):
-        self.add_file('_partials/existing.py','unchanged')
+        root_piece=self.add_file('_partials/existing.py','unchanged legacy code')
+        nested_piece=self.add_file('_boosterAI/_partials/existing.py','unchanged standard code')
+        protected={item:item.read_bytes() for item in (root_piece,nested_piece)}
         index=self.add_file('_boosterAI/project-index.json','{"custom_schema":"existing project data"}')
         original=index.read_bytes();result=self.cli('refresh-project-index')
         self.assertNotEqual(result.returncode,0)
         self.assertIn('unrecognized project index',result.stdout)
         self.assertEqual(index.read_bytes(),original)
+        for path,content in protected.items():self.assertEqual(path.read_bytes(),content)
+
+    def test_legacy_root_file_blocks_index_refresh_without_overwriting(self):
+        """A legacy root file is preserved while nested scaffold is created.
+
+        A recognized pre-existing index must stay byte-for-byte intact when the
+        legacy discovery root is a file instead of a directory. Exercise both
+        real CLI entry points in the owned fixture; do not follow or create links.
+        """
+        index=self.add_file('_boosterAI/project-index.json',
+                            json.dumps({'format':p.PROJECT_INDEX_FORMAT,'entries':[]})+'\n')
+        legacy=self.add_file('_partials','existing user-owned root file\n')
+        original_index=index.read_bytes();original_legacy=legacy.read_bytes()
+        scaffold=subprocess.run([sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),
+                                 'partials-init','--root',str(self.project)],capture_output=True,text=True)
+        self.assertEqual(scaffold.returncode,0,scaffold.stdout+scaffold.stderr)
+        self.assertEqual(json.loads(scaffold.stdout)['directory'],'_boosterAI/_partials')
+        standard=self.project/'_boosterAI/_partials/README.md'
+        self.assertTrue(standard.is_file());original_standard=standard.read_bytes()
+        result=self.cli('refresh-project-index')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('project index source root must be a directory',result.stdout)
+        self.assertEqual(legacy.read_bytes(),original_legacy)
+        self.assertEqual(index.read_bytes(),original_index)
+        self.assertEqual(standard.read_bytes(),original_standard)
+        self.assertEqual(list(self.scratch.iterdir()),[])
+
+    def test_existing_v1_and_both_partial_locations_are_preserved(self):
+        """Index standard and legacy files independently without modifying sources.
+
+        Build an existing v1 snapshot containing root partials and an experience,
+        then add distinct same-named files in the standard nested directory. The
+        real CLI must retain prior entries and content, index both paths and hashes,
+        produce a stable second refresh, and search both without executing code.
+        """
+        legacy_readme=self.add_file('_partials/README.md','legacy partial notes\n')
+        legacy_code=self.add_file('_partials/shared_a1b2c3d4.py',
+                                  'raise RuntimeError("legacy content is inert")\n')
+        experience=self.add_file('_boosterAI/experiences/local.md','existing experience\n')
+        initial=self.cli('refresh-project-index')
+        self.assertEqual(initial.returncode,0,initial.stdout+initial.stderr)
+        index=self.root/'project-index.json'
+        original=json.loads(index.read_bytes())
+        self.assertEqual(original['format'],'boosterai-project-index-v1')
+        original_entries={entry['path']:entry for entry in original['entries']}
+        standard_readme=self.add_file('_boosterAI/_partials/README.md','standard partial notes\n')
+        standard_code=self.add_file('_boosterAI/_partials/shared_a1b2c3d4.py',
+                                    'raise RuntimeError("standard content is inert")\n')
+        protected={path:path.read_bytes() for path in
+                   (legacy_readme,legacy_code,experience,standard_readme,standard_code)}
+        refreshed=self.cli('refresh-project-index')
+        self.assertEqual(refreshed.returncode,0,refreshed.stdout+refreshed.stderr)
+        self.assertEqual(json.loads(refreshed.stdout)['status'],'UPDATED')
+        after=index.read_bytes();data=json.loads(after)
+        self.assertEqual(data['format'],'boosterai-project-index-v1')
+        entries={entry['path']:entry for entry in data['entries']}
+        for path,entry in original_entries.items():self.assertEqual(entries[path],entry)
+        for path,content in protected.items():
+            relative=path.relative_to(self.project).as_posix()
+            self.assertEqual(path.read_bytes(),content)
+            self.assertEqual(entries[relative]['sha256'],hashlib.sha256(content).hexdigest())
+            self.assertNotIn(content.strip(),after)
+        search=self.cli('search-project-index','--query','shared_a1b2c3d4','--kind','partial')
+        self.assertEqual(search.returncode,0,search.stdout+search.stderr)
+        result=json.loads(search.stdout)
+        self.assertEqual([entry['path'] for entry in result['entries']],
+                         ['_boosterAI/_partials/shared_a1b2c3d4.py','_partials/shared_a1b2c3d4.py'])
+        self.assertFalse(result['source_freshness_checked'])
+        repeated=self.cli('refresh-project-index')
+        self.assertEqual(repeated.returncode,0,repeated.stdout+repeated.stderr)
+        self.assertEqual(json.loads(repeated.stdout)['status'],'UNCHANGED')
+        self.assertEqual(index.read_bytes(),after)
+        for path,content in protected.items():self.assertEqual(path.read_bytes(),content)
+        self.assertEqual(list(self.scratch.iterdir()),[])
 
     def test_missing_previously_indexed_record_stops_refresh(self):
         source=self.add_file('_boosterAI/_partials/piece.py','preserve its index entry')

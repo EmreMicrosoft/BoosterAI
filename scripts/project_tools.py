@@ -822,9 +822,10 @@ PROJECT_INDEX_KINDS = ('partial', 'partial-record', 'experience')
 def project_index_path(value, kind):
     """Validate an index path without resolving an arbitrary project reference.
 
-    Paths are project-relative POSIX strings. Partials live in one of the two
-    established locations; explicit experiences live under the project's own
-    _boosterAI directory. No source contents or free-form descriptions are kept.
+    Paths are project-relative POSIX strings. The standard partial location is
+    _boosterAI/_partials; the earlier root _partials is retained for discovery.
+    Explicit experiences live under the project's own _boosterAI directory.
+    No source contents or free-form descriptions are kept.
     """
     require(isinstance(value, str) and value and '\\' not in value and ':' not in value,
             'invalid project index path')
@@ -921,11 +922,12 @@ def project_index_walk(base, relative, only_metadata=False):
 def project_index_entries(base, experiences):
     """Build a sorted metadata-only view of partials and local experiences.
 
-    Explicit experience paths supplement known directories; files are hashed,
-    never imported, executed, parsed as project code, or copied to the index.
+    The standard nested partial directory is discovered first, followed by the
+    preserved root location. Explicit experience paths supplement both; files
+    are hashed, never imported, executed, parsed as code, or copied to the index.
     """
     files={}
-    for root in ('_partials','_boosterAI/_partials'):
+    for root in ('_boosterAI/_partials','_partials'):
         for path in project_index_walk(base,root):
             kind='partial-record' if path.rsplit('/',1)[-1].lower()=='readme.md' else 'partial'
             project_index_path(path,kind);files[path]=kind

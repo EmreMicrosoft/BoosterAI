@@ -215,26 +215,39 @@ def collect(root, manifest_path, owner, apply=False):
 
 
 def partials_init(root):
-    """Create the project-root partials index without moving or overwriting prior work.
+    """Create the standard nested partials index without modifying existing work.
 
-    The previous nested location is reported and remains untouched. Existing root
-    indexes are also preserved; callers decide how to reconcile their own records.
+    ``root`` must be an existing project root. Create ``_boosterAI/_partials``
+    and its README only when absent; a previously existing README stays unchanged.
+    Return the standard directory/index, creation state and whether an older root
+    ``_partials`` path exists. That root path is checked by metadata only: it
+    may be a file or directory and is never read, moved or overwritten here.
+    Keep ``legacy_location`` compatible with the earlier initializer: it reports
+    the nested directory if it existed before this call. New callers can inspect
+    ``legacy_root_location`` for the former project-root location instead.
+    Unsafe nested paths or filesystem errors fail without replacing prior files.
     """
     root = checked_root(root)
-    legacy = checked(root, '_boosterAI/_partials')
-    legacy_location = '_boosterAI/_partials' if legacy.exists() else None
-    directory = checked(root, '_partials')
+    legacy = root / '_partials'
+    try:
+        legacy.lstat()
+    except FileNotFoundError:
+        legacy_root_location = None
+    else:
+        legacy_root_location = '_partials'
+    directory = checked(root, '_boosterAI/_partials')
+    legacy_location = '_boosterAI/_partials' if directory.exists() else None
     directory.mkdir(parents=True, exist_ok=True)
-    index = checked(root, '_partials/README.md')
+    index = checked(root, '_boosterAI/_partials/README.md')
     if index.exists():
         require(index.is_file(), 'partials index is not a file')
-        return {'directory': '_partials', 'index': '_partials/README.md', 'created': False, 'preserved_existing': True, 'legacy_location': legacy_location}
+        return {'directory': '_boosterAI/_partials', 'index': '_boosterAI/_partials/README.md', 'created': False, 'preserved_existing': True, 'legacy_location': legacy_location, 'legacy_root_location': legacy_root_location}
     text = '''# Verified functional partials
 
 This index tracks executable functions, not a claim that files or builds are working products.
 Reuse the project algorithm and backlog; do not create a second authoritative plan here.
 Language priority: explicit request > existing module language > Python.
-Prior partials in `_boosterAI/_partials/`, if present, stay in place and must be inspected before creating replacements.
+Prior partials in the project-root `_partials/`, if present, stay in place and must be inspected before creating replacements.
 
 | ID | Function / contract | Code file | Dependencies | Owner / active run | Target / revision | Evidence / test state | Integration | Optional backup |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -253,7 +266,7 @@ If per-step GitHub backup was requested and authorized, record remote/branch/com
     # Exclusive creation avoids replacing an index created concurrently.
     with index.open('x', encoding='utf-8', newline='\n') as stream:
         stream.write(text)
-    return {'directory': '_partials', 'index': '_partials/README.md', 'created': True, 'preserved_existing': False, 'legacy_location': legacy_location}
+    return {'directory': '_boosterAI/_partials', 'index': '_boosterAI/_partials/README.md', 'created': True, 'preserved_existing': False, 'legacy_location': legacy_location, 'legacy_root_location': legacy_root_location}
 
 def workspace_init(root, records_existing=None, create_records=False, schema=None):
     """Scaffold owned work; explicit record selection prevents guessing an existing ledger."""
@@ -299,7 +312,7 @@ def workspace_init(root, records_existing=None, create_records=False, schema=Non
     overview = checked(root, '_boosterAI/README.md')
     if not overview.exists():
         with overview.open('x', encoding='utf-8') as stream:
-            stream.write('# BoosterAI project work\n\nAlgorithm: `algorithm.md`. Functional pieces and index: `../_partials/README.md`.\nKeep BoosterAI-owned evidence, handoffs and helper state here; respect the owner-selected scratch location. Existing project records and legacy partials remain authoritative in their original location.\nProject record selected at initialization: ' + (report['project_record'] or 'not selected; inspect existing records before creating another ledger') + '\n')
+            stream.write('# BoosterAI project work\n\nAlgorithm: `algorithm.md`. Functional pieces and index: `_partials/README.md`.\nKeep BoosterAI-owned evidence, handoffs and helper state here; respect the owner-selected scratch location. Existing project records and legacy partials remain authoritative in their original location.\nProject record selected at initialization: ' + (report['project_record'] or 'not selected; inspect existing records before creating another ledger') + '\n')
     return report
 
 def schema_status(root):
