@@ -89,6 +89,48 @@ class RealHarnessBoundaryTests(unittest.TestCase):
         return ('verify', '--task', 'one-task', '--run-id', run_id,
                 '--test', 'acceptance.py', '--case', case)
 
+    @unittest.skipUnless(sys.version_info.releaselevel == 'final',
+                         'combined startup rejects preview interpreters')
+    def test_combined_startup_real_acceptance_and_stale_code_failure(self):
+        """Exercise real CLI/child results, not a Codex host or external target."""
+        preflight = ['preflight']
+        if sys.version_info < (3, 12):
+            # Explicit compatibility-test override; not an inferred user grant.
+            preflight += ['--requested-python', '.'.join(map(str, sys.version_info[:2]))]
+        code, ready = self.invoke(*preflight)
+        self.assertEqual(code, 0, ready)
+        self.assertEqual(ready['status'], 'READY')
+        self.assertFalse(ready['automatic_hook_verified'])
+        self.assertFalse(ready['codex_host_verified'])
+        product = self.root / 'product.py'
+        product.write_text('def value():\n    return 2\n', encoding='utf-8')
+        case = 'Acceptance.test_retry'
+        run_id = self.start(case)
+        code, blocked = self.invoke(*preflight)
+        self.assertEqual(code, 1, blocked)
+        self.assertEqual(blocked['active_tasks'], ['one-task'])
+        code, accepted = self.invoke(*self.verify_args(run_id, case))
+        self.assertEqual(code, 0, accepted)
+        self.assertEqual(accepted['status'], 'VERIFIED')
+        self.assertEqual(accepted['verification']['report']['tests_run'], 1)
+        self.assertTrue(accepted['verification']['report']['success'])
+        self.assertEqual((self.root / '_temp-files/effect-count.txt').read_text(), '1')
+        product.write_text('def value():\n    return 3\n', encoding='utf-8')
+        state = self.root / '_boosterAI/harness-state.json'
+        before = state.read_bytes()
+        code, changed = self.invoke(*preflight)
+        self.assertEqual(code, 0, changed)
+        self.assertEqual(changed['stale_observed'], ['one-task'])
+        self.assertEqual(state.read_bytes(), before)
+        code, rejected = self.invoke(*self.verify_args(run_id, case))
+        self.assertEqual(code, 1, rejected)
+        self.assertEqual(rejected['status'], 'FAILED')
+        self.assertFalse(rejected['verification']['report']['success'])
+        self.assertEqual(rejected['verification']['report']['tests_run'], 1)
+        self.assertEqual(rejected['verification']['report']['failures'], 1)
+        self.assertEqual(rejected['verification']['report']['errors'], 0)
+        self.assertEqual((self.root / '_temp-files/effect-count.txt').read_text(), '2')
+
     def test_failed_effect_is_reviewed_and_unchanged_retry_is_blocked(self):
         """A failed real test cannot repeat its side effect until review and code change."""
         case = 'Acceptance.test_retry'

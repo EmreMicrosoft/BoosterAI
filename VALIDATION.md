@@ -226,3 +226,23 @@ rerun after rule changes. Final selected Windows Python 3.14 suite: 383 tests
 passed, 14 cases and 3 candidate modules excluded. Preview-Python preflight cases
 are explicitly skipped because the startup policy requires a stable interpreter.
 No new Codex session, previously refused test or junction test was invoked.
+
+### Combined startup through actual local harness processes
+
+A new real-boundaries regression invokes the current harness CLI as separate
+processes and launches its real acceptance child in an owned local fixture.
+It observes READY, blocks a new run while the registered task is ACTIVE, accepts
+actual fixture code returning 2, then changes the code to return 3. Preflight
+reports the prior evidence stale without changing stored state, and the real
+acceptance child reports one intended assertion failure (one test, one failure,
+zero errors), not VERIFIED. A persisted effect counter proves both executions.
+
+The focused scenario passed on Windows Python 3.12 and 3.14; final strengthened
+failure-count assertions passed again on 3.14. The selected 3.14 suite passed
+384 tests, excluding the same 14 cases and 3 candidate modules. Initial direct
+isolated execution could not import the local test helper; specifying only the
+repository test import path corrected that test-launch configuration. No denied
+operation was retried. This is real harness/fixture execution, not a fresh Codex
+session, automatic hook, agent dispatch or external-product acceptance. GitHub
+CI readback is pending because the service rejected the prior query with an IP
+rate limit; no retry or alternate access was used to bypass that restriction.
