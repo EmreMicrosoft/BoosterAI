@@ -181,6 +181,9 @@ def validate_entry(entry, schema=None):
     for value in [entry['name'], *entry['categories'], *entry['categoryAliases'], *entry['tags']]:
         if re.fullmatch(r'[a-z0-9][a-z0-9-]{0,63}', value) is None:
             raise ValueError('invalid archive slug')
+    for field in ('code_sha256', 'evidence_sha256'):
+        if re.fullmatch(r'[0-9a-f]{64}', entry[field]) is None:
+            raise ValueError('invalid archive digest: ' + field)
     if entry['tags'] != sorted(entry['tags']) or entry['keywords'] != entry['tags']:
         raise ValueError('tags and keywords must be identical and sorted')
     if entry['categoryAliases'] != sorted(entry['categoryAliases']):
@@ -196,7 +199,7 @@ def validate_entry(entry, schema=None):
     filename = code_filename(entry['name'], entry['revision'], entry['code_sha256'], suffix)
     expected = ['solutions', *entry['categories'], entry['name'], 'revisions',
                 str(entry['revision']).zfill(4), filename]
-    if list(code.parts) != expected:
+    if entry['code'] != '/'.join(expected):
         raise ValueError('code path does not match category and revision')
     return True
 

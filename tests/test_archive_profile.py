@@ -50,6 +50,40 @@ class JsonEqualityTests(unittest.TestCase):
                 profile.validate_schema(values, {'uniqueItems': True})
 
 
+class CanonicalRecordTests(unittest.TestCase):
+    """Check real archive metadata with no filesystem mutations or fixtures."""
+
+    def setUp(self):
+        self.index = json.loads((ROOT / 'solutions/index.json').read_text(encoding='utf-8'))
+
+    def test_noncanonical_paths_are_rejected(self):
+        entry = self.index['entries'][0]
+        path = entry['code']
+        for changed_path in (path.replace('solutions/', 'solutions/./', 1),
+                             path.replace('solutions/', 'solutions//', 1),
+                             path + '/', path.replace('/', '\\')):
+            changed = copy.deepcopy(entry)
+            changed['code'] = changed_path
+            with self.subTest(path=changed_path), self.assertRaises(ValueError):
+                profile.validate_entry(changed)
+
+    def test_digests_reject_trailing_newlines(self):
+        for field in ('code_sha256', 'evidence_sha256'):
+            changed = copy.deepcopy(self.index['entries'][0])
+            changed['evidence_basis'] = 'artifact-sha256'
+            changed[field] += '\n'
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, 'invalid archive digest'):
+                profile.validate_entry(changed)
+
+    def test_current_archive_paths_and_digests_remain_valid(self):
+        profile.validate_index(self.index)
+        for entry in self.index['entries']:
+            profile.validate_entry(entry)
+            categories, name, revision = profile.archive_file_identity(entry['code'])
+            self.assertEqual((categories, name, revision),
+                             (tuple(entry['categories']), entry['name'], entry['revision']))
+
+
 class ArchiveProfileTests(unittest.TestCase):
     def setUp(self):
         self.root = workspace(self)
