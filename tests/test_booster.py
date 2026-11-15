@@ -292,8 +292,8 @@ class CollectorTests(unittest.TestCase):
         partials=self.root/'_boosterAI/_partials'
         first=partials/'normalize_ab12cd34.py';first.write_text('def normalize(value):\n    """Normalize a text value for the project fixture.\n\n    Accept a string and return its stripped lower-case form without side effects.\n    A value without the string methods raises an error to the caller.\n    """\n    return value.strip().lower()\n')
         # Execute the actual fixture function in its intended Python runtime before adding its dependent function.
-        probe='from normalize_ab12cd34 import normalize; assert normalize("  ALICE ") == "alice"; print("normalized")'
-        checked=subprocess.run([sys.executable,'-S','-B','-c',probe],cwd=partials,capture_output=True,text=True)
+        probe='import sys; sys.path.insert(0,sys.argv[1]); from normalize_ab12cd34 import normalize; assert normalize("  ALICE ") == "alice"; print("normalized")'
+        checked=subprocess.run([sys.executable,'-I','-S','-B','-c',probe,str(partials)],capture_output=True,text=True)
         self.assertEqual(checked.returncode,0,checked.stderr)
         self.assertEqual(checked.stdout.strip(),'normalized')
         second=partials/'greet_1f2e3d4c.py';second.write_text('from normalize_ab12cd34 import normalize\ndef greet(value):\n    """Compose a greeting for a supplied text value.\n\n    Normalize the input using the verified helper and return a new string.\n    This function has no side effects and propagates invalid input errors.\n    """\n    return "Hello " + normalize(value)\n')
