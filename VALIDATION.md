@@ -76,3 +76,10 @@ The skill and generated scaffold require final links to actual created or saved 
 ## Requirement 40: blocking product ambiguity
 
 The skill and operating reference require inspecting existing records before asking concise questions about a remaining blocking product decision. Routine technical choices and clear authorized work continue. A text-contract regression checks ordering and the boundary wording; it is not a real behavioral evaluation of an independent agent. The owner subsequently requested publishing the prepared updates after adding requirement 40. Five focused Windows/Python 3.14 checks and package self-check passed; the new clarification check verifies the text contract only. Remote publication and CI are verified separately.
+
+
+## Reviewed prerequisite recovery
+
+A dependent started before its first verifier attempt can otherwise hold the single executor slot after an accepted prerequisite becomes stale. Two-step host effect review now permits the dependent to enter `WAITING_PREREQUISITE` only with zero attempts, no report/scratch and no retry-change obligation. Observation alone, attempted or uncertain verification, changed contracts, STOP and DENIED do not release that slot. The host must first pause its own work and inspect effects; this mechanism cannot prove outside process liveness.
+
+Seven fixture-free public-API state-transition regressions passed on Windows/Python 3.14, together with three existing input-limit tests. State, source snapshots and persistence were in-memory adapters; a sentinel stopped before scratch creation or any verifier subprocess. These results are not real-target acceptance or a fresh Codex integration run. The tests additionally retain exact run/test identity, original attempt/time budgets and STOP while waiting. Remote publication and selected CI results are verified separately. No previously excluded runner module or junction cases were run; existing retained scratch remains unchanged.

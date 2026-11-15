@@ -66,6 +66,17 @@ post-test snapshot before an explicitly requested retry is allowed. A test's own
 side effects do not count as that change. External-only changes cannot satisfy
 this conservative gate automatically; they need a separately supported handoff.
 
+When a prerequisite becomes stale after a dependent task was started but before
+its verifier ever ran, pause the dependent's host work and inspect its effects.
+The usual two-step `reconcile` / `reconcile --effects-reviewed` can then mark it
+`WAITING_PREREQUISITE`, releasing the serial slot for prerequisite repair. This
+requires zero verification attempts, no verifier report or scratch operation,
+and no retry-change obligation. Observation alone remains `AMBIGUOUS` and does
+not release the slot. Once prerequisite acceptance is fresh again, explicitly
+`verify` the waiting task with its original run ID and test; its original limits
+still apply. This does not stop outside host work or prove external effects.
+Attempted/uncertain verification, changed contracts, DENIED and STOP barriers
+are not automatically released by this narrow recovery path.
 The runner classifies a directly observed Python `PermissionError` as `DENIED`
 without recording its message or path. If that happens before a report can be
 written, its reserved exit code 77 also stops the task; arbitrary test code can

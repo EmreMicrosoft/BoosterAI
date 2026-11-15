@@ -305,6 +305,14 @@ def reconcile(root, source, identifier, run_id, effects_reviewed=False):
                 item['failed_tools'] = _tool_snapshot()
                 item['verification'] = {'case': item['case'], 'report': report,
                                         'elapsed_seconds': None, 'reconciled': True}
+        # A host-reviewed task whose verifier never ran can yield the serial
+        # slot to a stale prerequisite. Never infer orphaned work is finished.
+        if (effects_reviewed and item['status'] == 'ACTIVE'
+                and item.get('attempts') == 0 and item.get('verification') is None
+                and item.get('scratch') is None and not item.get('retry_requires_change')
+                and not all(_fresh(root, data['tasks'], cards, dep)
+                            for dep in cards[identifier]['depends_on'])):
+            item['status'] = 'WAITING_PREREQUISITE'
         item['effect_review'] = {'observed_at': _now(), 'changed_paths': changed,
                                  'observed_files': current,
                                  'host_review_declared': bool(effects_reviewed),
@@ -462,7 +470,8 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
         _require(not any(name != identifier and other.get('status') in _ACTIVE
                          for name, other in data['tasks'].items()), 'another task is active or ambiguous')
         _require(item['attempts'] < item['max_attempts'], 'explicit attempt limit reached')
-        _require(item['status'] in {'ACTIVE', 'STALE'}, 'task is stopped, denied, or requires effect review')
+        _require(item['status'] in {'ACTIVE', 'STALE', 'WAITING_PREREQUISITE'},
+                 'task is stopped, denied, or requires effect review')
         _require(identifier in cards and item['card_sha256'] == _digest(cards[identifier]),
                  'task contract changed; manual review required')
         _require(item['test'] == test and item['case'] == case, 'test differs from explicitly registered case')
