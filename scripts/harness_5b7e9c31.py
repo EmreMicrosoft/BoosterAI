@@ -195,9 +195,9 @@ def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3
     already stopped, running, ambiguous or present is never silently restarted.
     """
     _require(_CASE.fullmatch(case) is not None, 'case must be Class.test_method')
-    _require(isinstance(attempts, int) and 1 <= attempts <= 10, 'attempt limit must be 1..10')
-    _require(isinstance(timeout, int) and 1 <= timeout <= 600, 'test timeout must be 1..600 seconds')
-    _require(isinstance(max_elapsed, int) and 1 <= max_elapsed <= 604800,
+    _require(type(attempts) is int and 1 <= attempts <= 10, 'attempt limit must be 1..10')
+    _require(type(timeout) is int and 1 <= timeout <= 600, 'test timeout must be 1..600 seconds')
+    _require(type(max_elapsed) is int and 1 <= max_elapsed <= 604800,
              'elapsed limit must be 1..604800 seconds')
     _CORE._relative(test)
     with _STATE.locked(root) as root:
