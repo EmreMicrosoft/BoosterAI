@@ -7,12 +7,14 @@ edits the project's canonical plan or executes code. Each node has ``id``,
 relative forward slashes. Every output must be a claimed file, and acceptance
 must be ``{'type': 'sha256', 'path': TARGET, 'sha256': LOWERCASE_HEX}``.
 
-Pass a prior result's ``evidence`` as ``previous``. To record a new observation,
-include the node ID in ``observed`` after the responsible owner has acted. A
-node is accepted only after its actual input and output files have been read,
-its target hash matches, and its dependencies are accepted. A prior result is
-reused only after those reads and a matching fingerprint. A changed input,
-contract, dependency or output makes the node and dependent nodes stale.
+Pass a prior result's ``evidence`` as ``previous``. To request a new file
+observation, include its node ID in ``observed``. A file observation matches
+only after actual input and output reads, a matching target hash, and matching
+dependency observations. A prior observation is reused only after those reads
+and a matching fingerprint. A changed input, contract, dependency or output
+makes the node and dependent observations stale. Neither matching observations
+nor the legacy ready/continuation fields establish product acceptance or
+authorize execution; the result explicitly reports both as false.
 
 File bytes alone cannot prove code ran, that the expected hash is correct, or
 that a prior record is authentic. The caller must establish those facts and
@@ -256,9 +258,11 @@ def _normal_plan(plan):
     ``plan`` is an in-memory mapping containing a nonempty ``nodes`` list. Return
     a normalized node mapping and deterministic topological order without changing
     the input or reading files. Malformed contracts, missing dependencies, cycles,
-    conflicting file owners, unordered shared claims or producer/consumer pairs
-    raise ValueError. File claims use Unicode/case-folded comparison for portability;
-    an explicit direct or transitive dependency permits shared claims in sequence.
+    conflicting file owners, slice/file-owner mismatches, unordered shared claims
+    or producer/consumer pairs raise ValueError. Every claimed writable file must
+    name the slice owner; delegated writes require a separate supported handoff.
+    File claims use Unicode/case-folded comparison for portability; an explicit
+    direct or transitive dependency permits shared claims in sequence.
     """
     _require(isinstance(plan, dict) and isinstance(plan.get("nodes"), list)
              and bool(plan["nodes"]), "plan must contain a nonempty nodes list")
@@ -278,6 +282,7 @@ def _normal_plan(plan):
         for path, file_owner in raw["file_owners"].items():
             path = _relative(path)
             file_owner = _text(file_owner, "file owner")
+            _require(file_owner == owner, "slice owner differs from declared file owner")
             key = _file_key(path)
             _require(key not in (_file_key(item) for item in file_owners), "duplicate claimed file")
             if key in owners:
@@ -350,6 +355,9 @@ def evaluate(root, plan, previous=None, observed=(), *, stopped=False, denied=()
     prevent readiness. Invalid plans or unsafe paths raise ValueError; file access
     errors propagate. This function reads files but never writes or runs code. It
     cannot authenticate prior evidence or prove the expected hash is correct.
+    Ready and continuation fields concern file observations only. Every returned
+    result explicitly sets product_acceptance_verified and execution_authorized
+    to False; the responsible host must separately establish those facts.
     """
     _require(type(stopped) is bool, "stopped must be a boolean")
     nodes, order = _normal_plan(plan)
@@ -375,6 +383,7 @@ def evaluate(root, plan, previous=None, observed=(), *, stopped=False, denied=()
     ]
     if stopped:
         return {"continuation_permitted": False, "halt_reason": "STOP",
+                "product_acceptance_verified": False, "execution_authorized": False,
                 "order": order, "ready": [], "parallel_ready": [], "deferred_ready": [],
                 "nodes": {item: {"state": "HALTED"} for item in order},
                 "denied": sorted(denied), "blocked_descendants": [],
@@ -448,6 +457,7 @@ def evaluate(root, plan, previous=None, observed=(), *, stopped=False, denied=()
             used_owners.add(node["owner"])
             used_files.update(claimed)
     return {"continuation_permitted": bool(ready),
+            "product_acceptance_verified": False, "execution_authorized": False,
             "denied": sorted(denied),
             "blocked_descendants": [item for item in order if results[item]["state"] == "BLOCKED"],
             "order": order, "ready": ready,

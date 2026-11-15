@@ -388,6 +388,81 @@ class ProjectToolsTests(unittest.TestCase):
             p.register_helper(self.project,'other','1.0.0','_partials/double_1234abcd.py','proof.txt','Python CLI')
         with self.assertRaisesRegex(ValueError,'unsafe relative path'):
             p.register_helper(self.project,'other','1.0.0','../outside.py','proof.txt','Python CLI',source_scope='project')
+    def test_standard_partial_registered_and_executed_by_consumer(self):
+        """Exercise the nested standard, real helper CLI and a consuming process.
+
+        First verify the project function against a real input file, then use
+        that observation as registration evidence. A separate project-owned
+        entry point invokes the registered copy; source, evidence, code and
+        metadata remain unchanged when the helper is checked and reused.
+        """
+        project_record=self.project/'PROJECT_RECORDS.md';project_record.write_bytes(b'Existing project record\n')
+        record_state=(project_record.read_bytes(),project_record.stat().st_ino,project_record.stat().st_mtime_ns)
+        scaffold=subprocess.run([sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),
+                                 'partials-init','--root',str(self.project)],capture_output=True,text=True)
+        self.assertEqual(scaffold.returncode,0,scaffold.stdout+scaffold.stderr)
+        self.assertEqual(json.loads(scaffold.stdout)['directory'],'_boosterAI/_partials')
+        self.assertEqual((project_record.read_bytes(),project_record.stat().st_ino,project_record.stat().st_mtime_ns),record_state)
+        partials=self.root/'_partials'
+        source=partials/'count_lines_c7a4e1b2.py'
+        source.write_text('from pathlib import Path\n'
+                          'def count_content_lines(path):\n'
+                          '    """Count nonempty UTF-8 lines in a caller-supplied file.\n\n'
+                          '    Read the file without modifying it and return an integer count.\n'
+                          '    Filesystem and decoding errors propagate to the caller.\n'
+                          '    """\n'
+                          '    return sum(bool(line.strip()) for line in Path(path).read_text(encoding="utf-8").splitlines())\n',
+                          encoding='utf-8')
+        input_file=self.project/'notes.txt';input_file.write_text('first\n\nsecond\n',encoding='utf-8')
+        probe='import runpy,sys; f=runpy.run_path(sys.argv[1])["count_content_lines"]; print(f(sys.argv[2]))'
+        observed=subprocess.run([sys.executable,'-I','-S','-B','-c',probe,str(source),str(input_file)],
+                                capture_output=True,text=True)
+        self.assertEqual(observed.returncode,0,observed.stderr);self.assertEqual(observed.stdout.strip(),'2')
+        evidence=self.root/'evidence'/'count-lines.txt';evidence.parent.mkdir();evidence.write_text(observed.stdout,encoding='utf-8')
+        original={path:(path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns)
+                  for path in (source,input_file,evidence)}
+        original[project_record]=record_state
+        register=[sys.executable,'-I','-S','-B',str(ROOT/'scripts/project_tools.py'),'register-helper',
+                  '--root',str(self.project),'--name','count-lines','--version','1.0.0',
+                  '--source','_boosterAI/_partials/count_lines_c7a4e1b2.py','--source-scope','project',
+                  '--evidence','evidence/count-lines.txt','--target','Python CLI']
+        first=subprocess.run(register,capture_output=True,text=True)
+        self.assertEqual(first.returncode,0,first.stdout+first.stderr)
+        registered=json.loads(first.stdout);self.assertTrue(registered['created'])
+        self.assertEqual(registered['metadata']['source_scope'],'project')
+        self.assertEqual(registered['metadata']['documentation_check'],'python-ast')
+        self.assertFalse(registered['metadata']['evidence_authenticated'])
+        stored=self.root/registered['path']
+        self.assertRegex(stored.name,r'^count_lines_[0-9a-f]{8}\.py$')
+        self.assertEqual(stored.read_bytes(),source.read_bytes())
+        metadata=stored.parent/'metadata.json'
+        for path,state in original.items():
+            self.assertEqual((path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns),state)
+        protected={**original,**{path:(path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns)
+                                 for path in (stored,metadata)}}
+        checked=subprocess.run([sys.executable,'-I','-S','-B',str(ROOT/'scripts/project_tools.py'),
+                                'check-helper','--root',str(self.project),'--name','count-lines',
+                                '--version','1.0.0'],capture_output=True,text=True)
+        self.assertEqual(checked.returncode,0,checked.stdout+checked.stderr)
+        check_report=json.loads(checked.stdout)
+        self.assertEqual(check_report['path'],registered['path'])
+        self.assertTrue(check_report['actual_runtime_retest_required_when_target_changes'])
+        app=self.project/'app.py'
+        app.write_text('import runpy,sys\nfrom pathlib import Path\n'
+                       'helper=Path(__file__).parent / "_boosterAI" / '+repr(registered['path'])+'\n'
+                       'count=runpy.run_path(str(helper))["count_content_lines"]\n'
+                       'print("nonempty_lines="+str(count(sys.argv[1])))\n',encoding='utf-8')
+        consumer=subprocess.run([sys.executable,'-I','-S','-B',str(app),str(input_file)],
+                                capture_output=True,text=True)
+        self.assertEqual(consumer.returncode,0,consumer.stderr)
+        self.assertEqual(consumer.stdout.strip(),'nonempty_lines=2')
+        reused=subprocess.run(register,capture_output=True,text=True)
+        self.assertEqual(reused.returncode,0,reused.stdout+reused.stderr)
+        self.assertFalse(json.loads(reused.stdout)['created'])
+        self.assertEqual(json.loads(reused.stdout)['path'],registered['path'])
+        for path,original in protected.items():
+            self.assertEqual((path.read_bytes(),path.stat().st_ino,path.stat().st_mtime_ns),original)
+        self.assertFalse((self.project/'_partials').exists())
     def test_existing_legacy_helper_reused_without_rewriting_or_new_doc_gate(self):
         source=self.root/'legacy-source.py';source.write_text('def old(x):\n    return x+1\n')
         proof=self.root/'proof.txt';proof.write_text('legacy proof')

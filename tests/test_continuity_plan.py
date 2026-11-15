@@ -139,6 +139,27 @@ class ContinuityPlanTests(unittest.TestCase):
         self.assertEqual(resumed["nodes"]["b"]["state"], "STALE")
         self.assertEqual(resumed["ready"], ["b"])
 
+    def test_matching_file_observation_does_not_authorize_product_execution(self):
+        """A matching file can make a dependent observation ready, not accepted.
+
+        The real file contents are read by the evaluator; no task or acceptance
+        test is run. Fresh and reused observation states must both report that
+        product acceptance and execution authorization were not established.
+        """
+        self.write("a.out", b"a")
+        plan = {"nodes": [node("a", content=b"a"), node("b", dependencies=("a",))]}
+        observed = continuity.evaluate(self.project, plan, observed=("a",))
+        self.assertEqual(observed["nodes"]["a"]["state"], "TARGET_MATCHED")
+        self.assertEqual(observed["ready"], ["b"])
+        self.assertTrue(observed["continuation_permitted"])
+        self.assertIs(observed["product_acceptance_verified"], False)
+        self.assertIs(observed["execution_authorized"], False)
+        reused = continuity.evaluate(self.project, plan, previous=observed["evidence"])
+        self.assertEqual(reused["nodes"]["a"]["state"], "TARGET_REUSED")
+        self.assertEqual(reused["ready"], ["b"])
+        self.assertIs(reused["product_acceptance_verified"], False)
+        self.assertIs(reused["execution_authorized"], False)
+
     def test_contract_output_and_dependency_changes_stale_affected_nodes(self):
         """Changing contract, output bytes or dependency edges invalidates relevant evidence."""
         plan = self.graph()
@@ -186,22 +207,22 @@ class ContinuityPlanTests(unittest.TestCase):
 
     def test_unordered_shared_claims_are_rejected_before_any_file_read(self):
         """Different or identical task owners cannot make unordered shared claims."""
-        for second_owner, second_path in (("alpha", "shared.txt"),
-                                          ("bravo", "SHARED.TXT")):
+        for second_owner, second_path, error in (("alpha", "shared.txt", "unordered shared file claims"),
+                                                 ("bravo", "SHARED.TXT", "conflicting owners for file")):
             a, b = node("a", owner="alpha"), node("b", owner=second_owner)
-            a["file_owners"]["shared.txt"] = "custodian"
-            b["file_owners"][second_path] = "custodian"
+            a["file_owners"]["shared.txt"] = "alpha"
+            b["file_owners"][second_path] = second_owner
             with self.subTest(owner=second_owner, path=second_path):
                 with patch.object(continuity, "_read_hash") as read:
-                    with self.assertRaisesRegex(ValueError, "unordered shared file claims"):
+                    with self.assertRaisesRegex(ValueError, error):
                         continuity.evaluate(self.project, {"nodes": [a, b]})
                     read.assert_not_called()
 
     def test_direct_and_transitive_shared_claims_have_explicit_order(self):
         """A direct or transitive dependency permits the same claimed file in order."""
         for dependency in ("a", "b"):
-            a, b = node("a"), node("b", dependencies=("a",))
-            c = node("c", dependencies=(dependency,))
+            a, b = node("a", owner="custodian"), node("b", dependencies=("a",))
+            c = node("c", owner="custodian", dependencies=(dependency,))
             a["file_owners"]["shared.txt"] = "custodian"
             c["file_owners"]["SHARED.TXT"] = "custodian"
             with self.subTest(dependency=dependency):
@@ -211,7 +232,7 @@ class ContinuityPlanTests(unittest.TestCase):
 
     def test_unicode_equivalent_claims_require_dependency(self):
         """Treat composed and decomposed Unicode names as one claimed file."""
-        a, b = node("a"), node("b")
+        a, b = node("a", owner="custodian"), node("b", owner="custodian")
         a["file_owners"]["caf\u00e9.txt"] = "custodian"
         b["file_owners"]["cafe\u0301.txt"] = "custodian"
         plan = {"nodes": [b, a]}
@@ -234,6 +255,8 @@ class ContinuityPlanTests(unittest.TestCase):
         with patch.object(continuity, "_read_hash", side_effect=read_independent):
             result = continuity.evaluate(self.project, plan, denied=("a",), observed=("a",))
         self.assertTrue(result["continuation_permitted"])
+        self.assertIs(result["product_acceptance_verified"], False)
+        self.assertIs(result["execution_authorized"], False)
         self.assertEqual(result["nodes"]["a"]["state"], "DENIED")
         self.assertEqual(result["nodes"]["b"]["state"], "BLOCKED")
         self.assertEqual(result["blocked_descendants"], ["b"])
@@ -243,6 +266,8 @@ class ContinuityPlanTests(unittest.TestCase):
         """Global STOP halts all slices even if the project root is unavailable."""
         result = continuity.evaluate(self.project / "not-created", {"nodes": [node("a")]}, stopped=True)
         self.assertFalse(result["continuation_permitted"])
+        self.assertIs(result["product_acceptance_verified"], False)
+        self.assertIs(result["execution_authorized"], False)
         self.assertEqual(result["ready"], [])
         self.assertEqual(result["nodes"]["a"]["state"], "HALTED")
 
@@ -250,7 +275,7 @@ class ContinuityPlanTests(unittest.TestCase):
         """Reject missing nodes, cycles, file-owner conflicts and unsupported acceptances."""
         missing = node("a", dependencies=("missing",))
         cycle_a, cycle_b = node("a", dependencies=("b",)), node("b", dependencies=("a",))
-        owner_a, owner_b = node("a"), node("b")
+        owner_a, owner_b = node("a", owner="first"), node("b", owner="second")
         owner_a["file_owners"]["shared"] = "first"
         owner_b["file_owners"]["shared"] = "second"
         receipt = node("a")
@@ -258,6 +283,20 @@ class ContinuityPlanTests(unittest.TestCase):
         for nodes in ([missing], [cycle_a, cycle_b], [owner_a, owner_b], [receipt]):
             with self.subTest(nodes=nodes), self.assertRaises(ValueError):
                 continuity.evaluate(self.project, {"nodes": nodes})
+
+    def test_slice_file_owner_mismatch_is_rejected_before_any_file_read(self):
+        """A node cannot claim another owner's file, including an extra claim."""
+        for output_claim in (True, False):
+            candidate = node("a", owner="alice")
+            if output_claim:
+                candidate["file_owners"]["a.out"] = "bob"
+            else:
+                candidate["file_owners"]["other.txt"] = "bob"
+            with self.subTest(output_claim=output_claim):
+                with patch.object(continuity, "_read_hash") as read:
+                    with self.assertRaisesRegex(ValueError, "slice owner differs from declared file owner"):
+                        continuity.evaluate(self.project, {"nodes": [candidate]})
+                    read.assert_not_called()
 
     def test_generated_input_must_have_an_ordered_producer(self):
         """Avoid scheduling a consumer alongside an unrelated producer of its input."""
