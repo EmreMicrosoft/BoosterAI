@@ -17,7 +17,8 @@ import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXCLUDED_MODULES = {"test_find_dirs_partial.py", "test_continuity_hook.py"}
+EXCLUDED_MODULES = {"test_find_dirs_partial.py", "test_continuity_hook.py",
+                    "test_harness_unittest.py"}
 EXCLUDED_CASE = "test_self_check_reports_missing_and_broken_registration"
 PYTHON_310_URL = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
 PYTHON_310_BYTES = 8629277
@@ -175,7 +176,8 @@ def leaves(suite):
 def run_selected():
     """Run permitted discovered tests while preserving excluded and unknown work.
 
-    Exclude the two locally rejected candidate modules, link-creation cases and
+    Exclude locally rejected candidate modules, the harness runner regression
+    whose combined test/cleanup command was refused, link-creation cases and
     the package-copy case that could copy those candidates. Test fixtures and
     child process temporary files stay inside a unique checkout-local operation.
     Return zero only when the selected suite succeeds; do not call this full
@@ -206,8 +208,8 @@ def run_selected():
                     excluded_cases += 1
                 else:
                     selected.addTest(case)
-        print("Selected %d tests; excluded %d individual cases and two candidate modules."
-              % (selected.countTestCases(), excluded_cases), flush=True)
+        print("Selected %d tests; excluded %d individual cases and %d candidate modules."
+              % (selected.countTestCases(), excluded_cases, len(EXCLUDED_MODULES)), flush=True)
         result = unittest.TextTestRunner(verbosity=1).run(selected)
         return 0 if result.wasSuccessful() else 1
 

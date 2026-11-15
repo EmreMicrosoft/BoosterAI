@@ -62,7 +62,8 @@ class ArchiveSyncTests(unittest.TestCase):
         self.assertEqual(s.sync(self.root,force=True,fetch=self.fetch,now=self.now)['status'],'UNCHANGED')
         self.assertFalse(previous.exists())
         first=self.commit;self.commit='c'*40
-        self.assertEqual(s.sync(self.root,force=True,fetch=self.fetch,now=self.now)['status'],'UPDATED')
+        updated=s.sync(self.root,force=True,fetch=self.fetch,now=self.now)
+        self.assertEqual(updated['status'],'UPDATED',updated)
         before=previous.read_bytes();self.assertEqual(json.loads(before)['commit'],first)
         self.assertEqual(s.sync(self.root,force=True,fetch=self.fetch,now=self.now)['status'],'UNCHANGED')
         self.assertEqual(previous.read_bytes(),before)

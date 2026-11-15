@@ -1,6 +1,6 @@
 # BoosterAI
 
-A portable instruction skill for incremental, evidence-driven software delivery. It reduces coordination overhead without pretending that more agents, a green build, or a status file constitute working software.
+A portable instruction skill for incremental, evidence-driven software delivery. It organizes work without pretending that more agents, a green build, or a status file constitute working software.
 
 ## Use
 Read `SKILL.md` in your coding agent and explicitly ask it to apply BoosterAI to your authorized project. The package uses ordinary Markdown and optional Python standard-library tooling. Agent-specific installation and skill discovery differ; placing this repository on disk does **not** prove that an agent discovers or follows it. No hooks, global configuration, schedulers or other projects are changed by this package.
@@ -24,7 +24,6 @@ python scripts/booster.py validate path/to/plan.json
 python scripts/booster.py gc-plan --root PROJECT/_boosterAI --manifest scratch-manifest.json --owner RUN_OWNER
 python scripts/booster.py gc-apply --root PROJECT/_boosterAI --manifest scratch-manifest.json --owner RUN_OWNER
 python -I -S -B scripts/find_directory.py --name SampleFolder --root .
-python -I -S -B -m unittest discover -s tests -v
 ```
 
 See `references/operating-algorithm.md` for the plan contract and `references/owned-cleanup.md` for the owned-scratch manifest. Validation checks metadata, not the truth of evidence. The collector quarantines manifest-owned expired inactive files, never purges. Stop writers first: this is not a distributed locking service. Tests use unique directories under this repository's ignored `_temp-files/`, redirect Python and child-process temporary files there, and register cleanup before setup can fail. Successful and failed test runs remove their own fixtures.
@@ -32,6 +31,8 @@ See `references/operating-algorithm.md` for the plan contract and `references/ow
 For multiple local participants, `scripts/claim_guard_8d31f72a.py` provides process-lifetime cooperative slice and file claims. `scripts/continuity_plan_64e9b1c2.py` checks actual file fingerprints and dependencies so unchanged observations can be reused. Its observation readiness is not product acceptance or execution authorization, and each claimed writable file must name its slice owner. The host still establishes actual ownership, reconciles a crashed worker's effects and runs real acceptance tests. See the operating reference for their limits, compatibility change and API contracts.
 
 For task decomposition, `scripts/task_cards_a61e2c97.py` generates cards from an explicitly selected structured source graph and validates a proposed bundle against every source node and slice. It checks graph ordering and declared file conflicts before returning a valid result. Use `generate` with source JSON on stdin, then `validate` with both the current source and bundle on stdin; the exact contract is in `references/operating-algorithm.md`. This is a planning check, not an executor, a test result or proof that the selected source included an omitted requirement.
+
+The optional [single-executor harness](references/optional-harness.md) connects a selected task card to one explicitly named, trusted Python acceptance test. The host still develops the code and approves the actual test; a real, non-skipped passing case and unchanged declared code and verifier bytes are required for `VERIFIED`. A single local state file records attempts and interruption recovery. The harness does not launch Codex or sandbox project tests, control outsiders, authenticate arbitrary evidence, or measure model cost. The standalone skill remains usable without it.
 
 For the documented narrow Mermaid profile, `scripts/flow_schema_42d8e671.py` extracts the actual source nodes, control transitions, decisions and cyclic components. `scripts/flow_cards_f930b1a6.py` derives unresolved node candidates, checks source coverage, previews explicitly supplied routes and can bind explicit slice metadata to one action. Branches, loops, missing details and actual execution remain separate; the profile and unsupported source formats are described in the operating reference.
 

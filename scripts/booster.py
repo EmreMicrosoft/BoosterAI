@@ -16,6 +16,21 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def unique_json_object(pairs):
+    """Reject ambiguous repeated keys while decoding every JSON object.
+
+    ``pairs`` is the ordered sequence supplied by ``json.loads``. Return a new
+    mapping only when no key appears twice; raise ValueError otherwise. Object
+    order is retained. This applies equally to nested objects and performs no
+    file or network writes.
+    """
+    result = {}
+    for key, value in pairs:
+        require(key not in result, 'duplicate JSON object key')
+        result[key] = value
+    return result
+
+
 def instant(value):
     require(isinstance(value, str), 'timestamp must be string')
     result = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
@@ -369,11 +384,16 @@ def self_check(root):
                      'scripts/contribution_preflight_5c294f8d.py', 'scripts/publication_scan_91c4e6b2.py',
                      'scripts/claim_guard_8d31f72a.py', 'scripts/continuity_plan_64e9b1c2.py',
                      'scripts/task_cards_a61e2c97.py', 'scripts/flow_schema_42d8e671.py',
-                     'scripts/flow_cards_f930b1a6.py', 'solutions/archive.schema.json',
+                     'scripts/flow_cards_f930b1a6.py', 'scripts/harness_5b7e9c31.py',
+                     'scripts/harness_state_2fc47a91.py', 'scripts/harness_unittest_b913ed42.py',
+                     'solutions/archive.schema.json',
                      'tests/test_booster.py', 'tests/test_project_tools.py', 'tests/test_archive_sync.py',
                      'tests/test_archive_profile.py', 'tests/test_contribution_preflight.py',
                      'tests/test_publication_scan.py', 'tests/test_claim_guard.py',
                      'tests/test_continuity_plan.py', 'tests/test_task_cards.py',
+                     'tests/test_harness_state.py', 'tests/test_harness_flow.py',
+                     'tests/test_harness_pilot_acceptance.py', 'tests/test_harness_unittest.py',
+                     'tests/test_harness_recovery_acceptance.py',
                      'tests/test_flow_schema.py', 'tests/test_flow_cards.py', 'tests/repo_temp.py',
                      'tests/test_repo_temp.py', 'tests/test_find_directory.py', 'README.md'):
         require(checked(root, resource).is_file(), 'missing package file: ' + resource)
@@ -421,7 +441,8 @@ def main():
         elif args.command == 'self-check':
             result = self_check(args.root)
         elif args.command == 'validate':
-            result = validate(json.loads(Path(args.plan).read_text(encoding='utf-8-sig')))
+            result = validate(json.loads(Path(args.plan).read_text(encoding='utf-8-sig'),
+                                         object_pairs_hook=unique_json_object))
         else:
             result = collect(args.root, args.manifest, args.owner, args.command == 'gc-apply')
         print(json.dumps(result, indent=2))

@@ -122,7 +122,7 @@ class ArchiveCompatibilityTests(unittest.TestCase):
         consumer = self.project / 'consumer'
         consumer.mkdir()
         result = self.consume(consumer, index, archived, 'a' * 40)
-        self.assertEqual(result['status'], 'UPDATED')
+        self.assertEqual(result['status'], 'UPDATED', result)
         self.assertFalse(result['downloaded_code_executed'])
         self.assertEqual(reader.search(consumer, 'boundary')['commit'], 'a' * 40)
 
