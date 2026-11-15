@@ -5,6 +5,7 @@ import importlib
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -33,25 +34,26 @@ def test_workspace():
     return base
 
 
-def find_interpreter(requested):
+def find_interpreter(requested, environment=None):
     """Find one requested Python minor version without downloading a runtime.
 
     Prefer the current executable when it matches. Otherwise inspect GitHub's
-    read-only preinstalled tool cache for a stable x64 release of that minor
-    version and select the highest patch. Missing or malformed versions raise
-    ValueError; the selected interpreter verifies its own version before tests.
+    read-only preinstalled tool cache for the highest stable x64 patch, then
+    check an existing system interpreter. Never download or install Python.
+    Missing or malformed versions raise ValueError; the selected interpreter
+    verifies its own version before running tests. Windows launcher discovery
+    uses the caller's operation-local environment and does not change files.
     """
     if re.fullmatch(r"3\.(?:10|11|12|13|14)", requested) is None:
         raise ValueError("unsupported CI Python version")
     major, minor = (int(part) for part in requested.split("."))
     if sys.version_info[:2] == (major, minor):
         return Path(sys.executable)
-    cache = os.environ.get("RUNNER_TOOL_CACHE")
-    if not cache:
-        raise ValueError("requested Python is not current and no runner tool cache is available")
-    versions = Path(cache) / "Python"
+    environment = os.environ if environment is None else environment
+    cache = environment.get("RUNNER_TOOL_CACHE")
     candidates = []
-    if versions.is_dir():
+    versions = Path(cache) / "Python" if cache else None
+    if versions is not None and versions.is_dir():
         for directory in versions.iterdir():
             match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", directory.name)
             if not match or tuple(map(int, match.groups()[:2])) != (major, minor):
@@ -59,9 +61,21 @@ def find_interpreter(requested):
             executable = directory / "x64" / ("python.exe" if os.name == "nt" else "bin/python3")
             if executable.is_file():
                 candidates.append((int(match.group(3)), executable))
-    if not candidates:
-        raise ValueError("requested Python is absent from the preinstalled runner tool cache")
-    return max(candidates, key=lambda item: item[0])[1]
+    if candidates:
+        return max(candidates, key=lambda item: item[0])[1]
+    if os.name == "nt":
+        launcher = shutil.which("py", path=environment.get("PATH"))
+        if launcher:
+            probe = subprocess.run([launcher, "-" + requested, "-I", "-S", "-B", "-c",
+                                    "import sys; print(sys.executable)"], cwd=ROOT,
+                                   env=environment, capture_output=True, text=True, check=False)
+            if probe.returncode == 0 and probe.stdout.strip():
+                return Path(probe.stdout.strip())
+    else:
+        interpreter = shutil.which("python" + requested, path=environment.get("PATH"))
+        if interpreter:
+            return Path(interpreter)
+    raise ValueError("requested Python is absent from the preinstalled cache and system")
 
 
 def leaves(suite):
@@ -128,7 +142,6 @@ def main():
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
     try:
-        interpreter = find_interpreter(args.python)
         if args.execute:
             actual = "%d.%d" % sys.version_info[:2]
             if actual != args.python:
@@ -138,6 +151,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="ci-launch-", dir=test_workspace()) as operation:
             environment = dict(os.environ)
             environment.update({name: operation for name in ("TEMP", "TMP", "TMPDIR")})
+            interpreter = find_interpreter(args.python, environment)
             command = [str(interpreter), "-I", "-S", "-B", str(Path(__file__)),
                        "--python", args.python, "--execute"]
             return subprocess.run(command, cwd=ROOT, env=environment, check=False).returncode
