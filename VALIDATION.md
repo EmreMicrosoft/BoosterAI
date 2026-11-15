@@ -181,3 +181,12 @@ candidate modules remain excluded. Actual .NET SDK discovery/selection and
 Codex host invocation are NOT_RUN; this checker does not enforce host runtime
 selection or prove product acceptance. The changed skill invalidates old harness
 fingerprints; no fresh host pilot is claimed.
+
+Follow-up SDK observation: the installed Windows .NET host was invoked with
+`--list-sdks` and reported stable SDK 10.0.302. Passing that actual observation
+to `booster.py runtime-check --language dotnet --observed-version 10.0.302`
+returned valid with exit 0. The checker still honestly labels its input as
+caller-reported; the separate host output provides the installed-SDK observation.
+No SDK was installed, no project was retargeted or built, and no new scratch
+directory remained. Installed SDK availability is now observed; project SDK
+selection, .NET product acceptance and Codex host integration remain NOT_RUN.
