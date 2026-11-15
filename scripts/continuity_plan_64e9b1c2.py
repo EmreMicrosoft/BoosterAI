@@ -27,6 +27,7 @@ import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import stat
+import unicodedata
 
 
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
@@ -77,7 +78,8 @@ def _relative(value):
     windows = PureWindowsPath(value)
     _require(not path.is_absolute() and not windows.is_absolute() and not windows.drive,
              "absolute path forbidden")
-    _require(path.as_posix() == value and all(p not in (".", "..") for p in path.parts),
+    _require(bool(path.parts) and path.as_posix() == value
+             and all(p not in (".", "..") for p in path.parts),
              "noncanonical path or traversal forbidden")
     for part in path.parts:
         _require(not part.endswith((".", " "))
@@ -184,6 +186,17 @@ def _read_hash(root, relative):
         os.close(descriptor)
 
 
+def _file_key(path):
+    """Return a portable comparison key for one already validated file path.
+
+    ``path`` is a project-relative string. Return its Unicode NFC-normalized,
+    case-folded form without accessing the filesystem. This conservatively
+    catches common spelling aliases, but cannot detect every physical alias or
+    protect against concurrent replacement of path components.
+    """
+    return unicodedata.normalize("NFC", path).casefold()
+
+
 def _paths(value, name, nonempty=False):
     """Validate and sort a unique list of portable project-relative file paths.
 
@@ -195,9 +208,46 @@ def _paths(value, name, nonempty=False):
     _require(isinstance(value, list) and (bool(value) or not nonempty),
              name + " must be a " + ("nonempty " if nonempty else "") + "list")
     paths = [_relative(item) for item in value]
-    _require(len({item.casefold() for item in paths}) == len(paths),
+    _require(len({_file_key(item) for item in paths}) == len(paths),
              "duplicate " + name + " path")
     return sorted(paths)
+
+
+def dependency_order(
+    dependencies: dict[str, list[str]],
+) -> tuple[list[str], dict[str, set[str]]]:
+    """Validate a dependency graph and return its stable order and ancestors.
+
+    ``dependencies`` maps each nonempty node ID to a list of its prerequisite
+    IDs. All listed prerequisites must be present, distinct, and acyclic. The
+    result contains a deterministic topological order and a map from each ID to
+    all of its transitive prerequisites. An empty mapping returns two empty
+    results. Invalid IDs or graphs raise ValueError. The input is not mutated;
+    no file is read, no task is run, and no claimed evidence is authenticated.
+    """
+    _require(isinstance(dependencies, dict), "dependencies must be a mapping")
+    for item, required in dependencies.items():
+        _text(item, "node id")
+        _require(isinstance(required, list), "dependencies must be lists")
+        for dependency in required:
+            _text(dependency, "dependency")
+        _require(len(set(required)) == len(required), "duplicate dependency")
+        _require(all(dependency in dependencies for dependency in required),
+                 "missing dependency of " + item)
+    order = []
+    remaining = set(dependencies)
+    while remaining:
+        ready = sorted(item for item in remaining
+                       if all(dependency in order for dependency in dependencies[item]))
+        _require(bool(ready), "dependency cycle")
+        order.extend(ready)
+        remaining.difference_update(ready)
+    ancestors = {}
+    for item in order:
+        ancestors[item] = set(dependencies[item])
+        for dependency in dependencies[item]:
+            ancestors[item].update(ancestors[dependency])
+    return order, ancestors
 
 
 def _normal_plan(plan):
@@ -206,8 +256,9 @@ def _normal_plan(plan):
     ``plan`` is an in-memory mapping containing a nonempty ``nodes`` list. Return
     a normalized node mapping and deterministic topological order without changing
     the input or reading files. Malformed contracts, missing dependencies, cycles,
-    conflicting file owners or unordered producer/consumer pairs raise ValueError.
-    File ownership conflicts are compared case-insensitively for portability.
+    conflicting file owners, unordered shared claims or producer/consumer pairs
+    raise ValueError. File claims use Unicode/case-folded comparison for portability;
+    an explicit direct or transitive dependency permits shared claims in sequence.
     """
     _require(isinstance(plan, dict) and isinstance(plan.get("nodes"), list)
              and bool(plan["nodes"]), "plan must contain a nonempty nodes list")
@@ -227,8 +278,8 @@ def _normal_plan(plan):
         for path, file_owner in raw["file_owners"].items():
             path = _relative(path)
             file_owner = _text(file_owner, "file owner")
-            key = path.casefold()
-            _require(key not in (item.casefold() for item in file_owners), "duplicate claimed file")
+            key = _file_key(path)
+            _require(key not in (_file_key(item) for item in file_owners), "duplicate claimed file")
             if key in owners:
                 _require(owners[key] == file_owner, "conflicting owners for file: " + path)
             owners[key] = file_owner
@@ -254,26 +305,19 @@ def _normal_plan(plan):
     owner_paths = sorted(owners)
     _require(not any(other.startswith(path + "/") for index, path in enumerate(owner_paths)
                      for other in owner_paths[index + 1:]), "claimed files cannot contain one another")
-    for node in nodes.values():
-        _require(all(dep in nodes for dep in node["depends_on"]),
-                 "missing dependency of " + node["id"])
-    order = []
-    remaining = set(nodes)
-    while remaining:
-        ready = sorted(item for item in remaining
-                       if all(dep in order for dep in nodes[item]["depends_on"]))
-        _require(bool(ready), "dependency cycle")
-        order.extend(ready)
-        remaining.difference_update(ready)
-    ancestors = {}
-    for item in order:
-        ancestors[item] = set(nodes[item]["depends_on"])
-        for dependency in nodes[item]["depends_on"]:
-            ancestors[item].update(ancestors[dependency])
+    order, ancestors = dependency_order({
+        item: node["depends_on"] for item, node in nodes.items()
+    })
+    for index, first in enumerate(order):
+        first_claims = {_file_key(path) for path in nodes[first]["file_owners"]}
+        for second in order[index + 1:]:
+            shared = first_claims & {_file_key(path) for path in nodes[second]["file_owners"]}
+            _require(not shared or first in ancestors[second] or second in ancestors[first],
+                     "unordered shared file claims: " + first + ", " + second)
     for item in order:
         for producer in nodes:
-            if producer != item and {p.casefold() for p in nodes[item]["inputs"]} & {
-                    p.casefold() for p in nodes[producer]["outputs"]}:
+            if producer != item and {_file_key(p) for p in nodes[item]["inputs"]} & {
+                    _file_key(p) for p in nodes[producer]["outputs"]}:
                 _require(producer in ancestors[item],
                          "input producer is not ordered by dependencies: " + item)
     return nodes, order
@@ -356,7 +400,7 @@ def evaluate(root, plan, previous=None, observed=(), *, stopped=False, denied=()
             helper reads the file but does not modify it.
             """
             value = _read_hash(base, path)
-            key = path.casefold()
+            key = _file_key(path)
             _require(key not in seen_files or seen_files[key] == value,
                      "file changed between slice reads: " + path)
             seen_files[key] = value
@@ -398,7 +442,7 @@ def evaluate(root, plan, previous=None, observed=(), *, stopped=False, denied=()
     parallel_ready, used_files, used_owners = [], set(), set()
     for item in ready:
         node = nodes[item]
-        claimed = {path.casefold() for path in node["file_owners"]}
+        claimed = {_file_key(path) for path in node["file_owners"]}
         if node["owner"] not in used_owners and not (claimed & used_files):
             parallel_ready.append(item)
             used_owners.add(node["owner"])
