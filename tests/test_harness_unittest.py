@@ -71,7 +71,8 @@ class HarnessUnittestTests(unittest.TestCase):
         self.assertEqual(json.loads(path.read_text(encoding="utf-8")), {
             "format": "boosterai-harness-unittest-v1", "case": "Acceptance.test_pass",
             "tests_run": 1, "failures": 0, "errors": 0, "skipped": 0,
-            "expected_failures": 0, "unexpected_successes": 0, "success": True,
+            "expected_failures": 0, "unexpected_successes": 0,
+            "access_denied": False, "success": True,
         })
 
     def test_failure_skip_and_expected_outcomes_never_succeed(self):

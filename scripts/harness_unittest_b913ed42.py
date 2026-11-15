@@ -74,8 +74,49 @@ def _empty_result(case):
         "skipped": 0,
         "expected_failures": 0,
         "unexpected_successes": 0,
+        "access_denied": False,
         "success": False,
     }
+
+
+class _ClassifiedResult(unittest.TestResult):
+    """Record only observed PermissionError types, never private exception text.
+
+    Unittest captures fixture, test and subtest errors internally. Intercept the
+    supplied exception before formatting it so the host can block a detected
+    access denial. Caught or transformed exceptions, service responses, policy
+    decisions and effects outside this test remain outside this classification.
+    """
+
+    def __init__(self):
+        """Start with no observed access denial and standard unittest counts."""
+        super().__init__()
+        self.access_denied = False
+
+    def _observe(self, error):
+        """Remember a directly observed exception type without its message."""
+        if error is not None and isinstance(error[1], PermissionError):
+            self.access_denied = True
+
+    def addError(self, test, error):
+        """Classify an error before preserving unittest's ordinary accounting."""
+        self._observe(error)
+        super().addError(test, error)
+
+    def addFailure(self, test, error):
+        """Classify a failure before preserving unittest's ordinary accounting."""
+        self._observe(error)
+        super().addFailure(test, error)
+
+    def addSubTest(self, test, subtest, error):
+        """Inspect a subtest exception that unittest otherwise records directly."""
+        self._observe(error)
+        super().addSubTest(test, subtest, error)
+
+    def addExpectedFailure(self, test, error):
+        """Do not hide a permission denial behind an expected-failure marker."""
+        self._observe(error)
+        super().addExpectedFailure(test, error)
 
 
 def run_case(root, test_path, case):
@@ -87,7 +128,9 @@ def run_case(root, test_path, case):
     bad imports and missing methods produce a zero-test error report. Failure,
     error, skip, expected failure or unexpected success can never report success.
     Project test code is trusted, can have arbitrary effects, and is not sandboxed.
-    The caller is responsible for explicit authorization and timeout control.
+    A directly observed PermissionError sets ``access_denied`` without disclosing
+    its details. Caught or transformed errors and other kinds of denial are not
+    identified. The caller is responsible for authorization and timeout control.
     """
     report = _empty_result(case)
     match = _CASE.fullmatch(case)
@@ -109,9 +152,12 @@ def run_case(root, test_path, case):
         if not callable(getattr(test_class, match.group(2), None)):
             return report
         test = test_class(match.group(2))
-        actual = unittest.TestResult()
+        actual = _ClassifiedResult()
         # Suite execution also runs module/class setup and teardown fixtures.
         unittest.TestSuite((test,)).run(actual)
+    except PermissionError:
+        report["access_denied"] = True
+        return report
     except Exception:
         return report
     finally:
@@ -125,8 +171,9 @@ def run_case(root, test_path, case):
         "skipped": len(actual.skipped),
         "expected_failures": len(actual.expectedFailures),
         "unexpected_successes": len(actual.unexpectedSuccesses),
+        "access_denied": actual.access_denied,
     })
-    report["success"] = (report["tests_run"] == 1 and all(
+    report["success"] = (not report["access_denied"] and report["tests_run"] == 1 and all(
         report[name] == 0 for name in (
             "failures", "errors", "skipped", "expected_failures", "unexpected_successes"
         )
@@ -160,10 +207,12 @@ def main(argv=None):
     """Validate arguments, run one trusted case, and publish its count report.
 
     Return zero only for exactly one passing, non-skipped case with no recorded
-    failures or errors. Return one for a recorded unsuccessful case and two for
-    invalid paths or report I/O. A process interruption may produce no report;
-    the parent must treat missing or malformed reports as an ambiguous outcome.
-    No exception text, traceback or test output is added to the report.
+    failures or errors. Return one for a recorded unsuccessful case, 77 for a
+    directly observed PermissionError during path checks or report I/O, and two
+    for other invalid paths or report I/O. The fixed code 77 contains no error
+    detail and cannot detect every policy or service denial. A process interruption
+    may produce no report; the parent must treat other missing or malformed reports
+    as ambiguous. No exception text, traceback or test output enters the report.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True)
@@ -179,6 +228,8 @@ def main(argv=None):
         if _paths(args.root, args.test, args.report) != (root, test, report):
             raise ValueError("paths changed during test")
         _write_report(report, result)
+    except PermissionError:
+        return 77
     except (OSError, ValueError):
         return 2
     return 0 if result["success"] else 1

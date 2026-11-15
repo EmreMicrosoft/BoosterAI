@@ -18,6 +18,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 
@@ -46,6 +47,14 @@ _TOOL_FILES = ('scripts/harness_5b7e9c31.py', 'scripts/harness_state_2fc47a91.py
                'scripts/harness_unittest_b913ed42.py', 'scripts/task_cards_a61e2c97.py',
                'scripts/continuity_plan_64e9b1c2.py', 'scripts/claim_guard_8d31f72a.py',
                'scripts/project_tools.py')
+
+
+class VerificationUncertain(RuntimeError):
+    """A verifier may have started or changed state and requires reconciliation."""
+
+
+class VerificationAccessDenied(VerificationUncertain):
+    """An access denial occurred after verification state may have changed."""
 
 
 def _require(condition, message):
@@ -214,7 +223,8 @@ def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3
                 'attempts': 0, 'max_attempts': attempts, 'timeout_seconds': timeout,
                 'max_elapsed_seconds': max_elapsed,
                 'cost': None, 'cost_status': 'NOT_AVAILABLE', 'rework_attempts': 0,
-                'verification': None, 'verified_files': None, 'verified_tools': None,
+                'verification': None, 'attempt_history': [], 'retry_requires_change': False,
+                'verified_files': None, 'verified_tools': None,
                 'verified_revision': None,
                 'scratch': None, 'effect_review': None}
         data['tasks'][identifier] = item
@@ -234,7 +244,7 @@ def status(root, source):
         data = _data(data, source)
         changed = bool(_refresh(root, data, cards))
         for item in data['tasks'].values():
-            if item.get('status') == 'VERIFYING':
+            if item.get('status') in {'VERIFYING', 'STOP_REQUESTED'}:
                 item['status'] = 'AMBIGUOUS'
                 item['ended_at'] = _now()
                 changed = True
@@ -246,10 +256,11 @@ def status(root, source):
 def reconcile(root, source, identifier, run_id, effects_reviewed=False):
     """Observe declared effects after interruption without repeating any action.
 
-    A first call marks an active/interrupted task AMBIGUOUS and reports changed
-    paths. An explicit later host declaration that effects were reviewed permits
-    another separately requested test, but does not prove external effects, grant
-    permission or assert that old work completed. STOPPED cannot be resumed.
+    A first call observes current files after interruption or failure. An
+    explicit later host declaration is accepted only while those observations
+    remain unchanged. This is not proof of external effects or permission.
+    A failed test also needs a changed declared file or verifier before retry;
+    denied and stopped operations cannot be resumed here.
     """
     with _STATE.locked(root) as root:
         _, cards = _source(root, source)
@@ -259,28 +270,43 @@ def reconcile(root, source, identifier, run_id, effects_reviewed=False):
         _require(not data['stopped'], 'project harness is stopped')
         _require(not any(name != identifier and other.get('status') in _ACTIVE
                          for name, other in data['tasks'].items()), 'another task is active or ambiguous')
-        _require(item['status'] in {'ACTIVE', 'VERIFYING', 'AMBIGUOUS'}, 'task is not recoverable')
+        _require(item['status'] in {'ACTIVE', 'VERIFYING', 'AMBIGUOUS', 'FAILED'},
+                 'task is not recoverable')
         _require(identifier in cards and item['card_sha256'] == _digest(cards[identifier]),
                  'task contract changed; manual review required')
         current = _snapshot(root, cards[identifier], item['test'])
         baseline = item.get('attempt_files') or item['started_files']
         changed = sorted(path for path, value in current.items()
                          if baseline.get(path) != value)
-        _require(not effects_reviewed or item['status'] == 'AMBIGUOUS',
-                 'observe the interruption before declaring review')
-        item['status'] = 'ACTIVE' if effects_reviewed else 'AMBIGUOUS'
+        previous = item.get('effect_review')
+        if effects_reviewed:
+            _require(item['status'] in {'AMBIGUOUS', 'FAILED'} and isinstance(previous, dict)
+                     and previous.get('host_review_declared') is False,
+                     'observe effects before declaring review')
+            _require(previous.get('observed_files') == current,
+                     'effects changed after observation; inspect again')
+        original_status = item['status']
+        item['status'] = ('ACTIVE' if effects_reviewed else
+                          'FAILED' if original_status == 'FAILED' else 'AMBIGUOUS')
         # A completed failure report can explain an interrupted verifier, but a
         # late success cannot prove exit status or before/after freshness.
-        if effects_reviewed and item.get('scratch'):
+        if effects_reviewed and original_status == 'AMBIGUOUS' and item.get('scratch'):
             relative = item['scratch'] + '/result.json'
             path, exists = _CORE._path(root, relative)
             observed = _report(root, path, item['case']) if exists else None
             report = observed[0] if observed else None
-            if report and not report['success'] and report['tests_run'] > 0:
-                item['status'] = 'FAILED'
+            if report and report['access_denied']:
+                item['status'] = 'DENIED'
+                item['verification'] = {'case': item['case'], 'report': report,
+                                        'elapsed_seconds': None, 'reconciled': True}
+            elif report and not report['success'] and report['tests_run'] > 0:
+                item['retry_requires_change'] = True
+                item['failed_files'] = current
+                item['failed_tools'] = _tool_snapshot()
                 item['verification'] = {'case': item['case'], 'report': report,
                                         'elapsed_seconds': None, 'reconciled': True}
         item['effect_review'] = {'observed_at': _now(), 'changed_paths': changed,
+                                 'observed_files': current,
                                  'host_review_declared': bool(effects_reviewed),
                                  'external_effects_authenticated': False}
         _STATE.write(root, raw, data)
@@ -317,29 +343,109 @@ def _report(root, path, case):
                 or _CORE._identity(path.lstat()) != _CORE._identity(initial)):
             return None
         result = json.loads(raw.decode('utf-8'), object_pairs_hook=_CARDS._unique_object)
+    except PermissionError:
+        raise
     except (OSError, UnicodeError, ValueError):
         return None
     fields = {'format', 'case', 'tests_run', 'failures', 'errors', 'skipped',
-              'expected_failures', 'unexpected_successes', 'success'}
+              'expected_failures', 'unexpected_successes', 'success', 'access_denied'}
     if (not isinstance(result, dict) or set(result) != fields
             or result['format'] != 'boosterai-harness-unittest-v1' or result['case'] != case
-            or type(result['success']) is not bool):
+            or type(result['success']) is not bool or type(result['access_denied']) is not bool):
         return None
-    for field in fields - {'format', 'case', 'success'}:
+    for field in fields - {'format', 'case', 'success', 'access_denied'}:
         # A single unittest can report multiple failed subtests.
         if type(result[field]) is not int or not 0 <= result[field] <= 10000:
             return None
     return result, before, _CORE._identity(initial)
 
 
-def verify(root, source, identifier, run_id, test, case):
+def _interruptible(command, root, environment, timeout, stop_stream, on_stop=None):
+    """Run the owned test child and honor an exact STOP line on its host channel.
+
+    Only the direct child created here is terminated and reaped. Its descendants
+    and external effects may persist. A daemon reader lasts only for this CLI
+    process; EOF is not STOP. Access failures are surfaced and never bypassed.
+    """
+    stopped = threading.Event()
+
+    def listen():
+        """Observe bounded STOP lines without holding the host text-stream lock."""
+        try:
+            descriptor = stop_stream.fileno()
+            pending = bytearray()
+            overflow = False
+            while True:
+                byte = os.read(descriptor, 1)
+                if not byte:
+                    return
+                if byte == b'\n':
+                    if not overflow and bytes(pending).rstrip(b'\r') == b'STOP':
+                        stopped.set()
+                        return
+                    pending.clear()
+                    overflow = False
+                elif len(pending) < 32:
+                    pending.extend(byte)
+                else:
+                    overflow = True
+        except (OSError, ValueError):
+            stopped.set()
+
+    threading.Thread(target=listen, daemon=True, name='booster-stop-input').start()
+    if stopped.wait(0.02):
+        if on_stop is not None:
+            on_stop()
+        return None, True
+    child = subprocess.Popen(command, cwd=root, env=environment,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + timeout
+    while True:
+        if stopped.is_set():
+            persistence_error = None
+            if on_stop is not None:
+                try:
+                    on_stop()
+                except Exception as error:
+                    persistence_error = error
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait()
+            if persistence_error is not None:
+                if isinstance(persistence_error, PermissionError):
+                    raise VerificationAccessDenied('STOP barrier access denied; do not retry') from persistence_error
+                raise VerificationUncertain('STOP barrier could not be persisted') from persistence_error
+            return None, True
+        code = child.poll()
+        if code is not None:
+            if stopped.is_set():
+                if on_stop is not None:
+                    on_stop()
+                return None, True
+            return subprocess.CompletedProcess(command, code), False
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            child.kill()
+            child.wait()
+            raise subprocess.TimeoutExpired(command, timeout)
+        stopped.wait(min(0.1, remaining))
+
+
+def verify(root, source, identifier, run_id, test, case, stop_stream=None):
     """Run one explicitly named trusted acceptance case under the cooperative lock.
 
     Persist VERIFYING before starting the bounded child. A valid success requires
     the exact structured case, one actually run test, zero failure/error/skip or
     expected-failure counts, exit zero, and unchanged declared inputs/outputs.
     Timeout, missing report or interruption are AMBIGUOUS, never auto-retried.
-    This executes project code: the caller must inspect and authorize the test.
+    With an explicitly supplied host stream, a STOP line terminates only the
+    direct child and sets a persistent project STOP barrier. This executes
+    project code: the caller must inspect and authorize the test.
     """
     root = _CORE._root(root)
     _, initial_cards = _source(root, source)
@@ -355,11 +461,11 @@ def verify(root, source, identifier, run_id, test, case):
         item = _item(data, identifier, run_id)
         _require(not any(name != identifier and other.get('status') in _ACTIVE
                          for name, other in data['tasks'].items()), 'another task is active or ambiguous')
-        _require(item['status'] in {'ACTIVE', 'FAILED', 'STALE'}, 'task is stopped or requires reconciliation')
+        _require(item['attempts'] < item['max_attempts'], 'explicit attempt limit reached')
+        _require(item['status'] in {'ACTIVE', 'STALE'}, 'task is stopped, denied, or requires effect review')
         _require(identifier in cards and item['card_sha256'] == _digest(cards[identifier]),
                  'task contract changed; manual review required')
         _require(item['test'] == test and item['case'] == case, 'test differs from explicitly registered case')
-        _require(item['attempts'] < item['max_attempts'], 'explicit attempt limit reached')
         started = dt.datetime.fromisoformat(item['started_at'])
         elapsed = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
         _require(0 <= elapsed < item.get('max_elapsed_seconds', 3600), 'elapsed task limit reached')
@@ -369,42 +475,95 @@ def verify(root, source, identifier, run_id, test, case):
         before = _snapshot(root, card, test)
         tools_before = _tool_snapshot()
         _require(before[test] is not None, 'acceptance test is missing')
+        if item.get('retry_requires_change'):
+            old_files = item.get('failed_files')
+            old_tools = item.get('failed_tools')
+            _require(isinstance(old_files, dict) and
+                     (before != old_files or (isinstance(old_tools, dict) and tools_before != old_tools)),
+                     'failed test requires a changed declared file or verifier before retry')
         scratch = _TOOLS.scratch_directory(root)
         operation = Path(tempfile.mkdtemp(prefix='harness-', dir=scratch))
-        operation_identity = operation.lstat()
+        try:
+            operation_identity = operation.lstat()
+        except OSError as error:
+            raise VerificationUncertain('operation directory identity unavailable; preserved') from error
         report_path = operation / 'result.json'
         item['attempts'] += 1
         item['rework_attempts'] = max(0, item['attempts'] - 1)
         item['status'] = 'VERIFYING'
         item['attempt_files'] = before
+        item['attempt_tools'] = tools_before
         item['scratch'] = str(operation.relative_to(root).as_posix())
         item['ended_at'] = None
         report = None
         observed = None
         clean = True
         begin = time.monotonic()
+        attempt_started = _now()
+        child = None
+        after = None
+
+        def persist_stop():
+            """Record the STOP request before attempting to terminate the child."""
+            nonlocal raw
+            data['stopped'] = True
+            item['status'] = 'STOP_REQUESTED'
+            item['stop_requested_at'] = _now()
+            raw = _STATE.write(root, raw, data)
+
         try:
             raw = _STATE.write(root, raw, data)
             env = os.environ.copy()
             for name in ('TEMP', 'TMP', 'TMPDIR'):
                 env[name] = str(operation)
             try:
-                clean = False
-                child = subprocess.run([sys.executable, '-I', '-S', '-B', str(_RUNNER),
-                                        '--root', str(root), '--test', test, '--case', case,
-                                        '--report', str(report_path)], cwd=root, env=env,
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                        timeout=min(item['timeout_seconds'],
-                                                    item.get('max_elapsed_seconds', 3600) - elapsed),
-                                        check=False)
-                observed = _report(root, report_path, case)
-                report = observed[0] if observed else None
-                clean = True  # The direct child exited; descendants are not controlled.
-                result = 'AMBIGUOUS' if report is None else 'FAILED'
-                if report is not None and child.returncode == 0 and report == {
+                elapsed = (dt.datetime.now(dt.timezone.utc) - started).total_seconds()
+                remaining = item.get('max_elapsed_seconds', 3600) - elapsed
+                if remaining <= 0 or elapsed < 0:
+                    result = 'NOT_RUN'
+                    item['attempts'] -= 1
+                    item['rework_attempts'] = max(0, item['attempts'] - 1)
+                else:
+                    command = [sys.executable, '-I', '-S', '-B', str(_RUNNER),
+                               '--root', str(root), '--test', test, '--case', case,
+                               '--report', str(report_path)]
+                    timeout = min(item['timeout_seconds'], remaining)
+                    clean = False
+                    if stop_stream is None:
+                        child = subprocess.run(command, cwd=root, env=env,
+                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                               timeout=timeout, check=False)
+                        stopped = False
+                    else:
+                        child, stopped = _interruptible(command, root, env, timeout, stop_stream,
+                                                        persist_stop)
+                    if stopped:
+                        data['stopped'] = True
+                        result = 'STOPPED'
+                    elif child.returncode == 77:
+                        # The runner directly observed access denial before it
+                        # could write a report. Never repeat the denied read.
+                        result = 'DENIED'
+                    else:
+                        observed = _report(root, report_path, case)
+                        report = observed[0] if observed else None
+                        clean = report is not None  # Unknown child effects stay preserved.
+                        result = 'AMBIGUOUS'
+                if report is not None and report['access_denied']:
+                    result = 'DENIED'
+                elif (report is not None and child.returncode == 1 and not report['success']
+                      and report['tests_run'] > 0 and any(report[key] for key in
+                          ('failures', 'errors', 'skipped', 'expected_failures', 'unexpected_successes'))):
+                    after = _snapshot(root, card, test)
+                    item['retry_requires_change'] = True
+                    item['failed_files'] = after
+                    item['failed_tools'] = _tool_snapshot()
+                    result = 'FAILED'
+                elif report is not None and child.returncode == 0 and report == {
                         'format': 'boosterai-harness-unittest-v1', 'case': case,
                         'tests_run': 1, 'failures': 0, 'errors': 0, 'skipped': 0,
-                        'expected_failures': 0, 'unexpected_successes': 0, 'success': True}:
+                        'expected_failures': 0, 'unexpected_successes': 0,
+                        'success': True, 'access_denied': False}:
                     after = _snapshot(root, card, test)
                     _, updated_cards = _source(root, source)
                     if (before == after and tools_before == _tool_snapshot()
@@ -415,14 +574,36 @@ def verify(root, source, identifier, run_id, test, case):
                         item['verified_files'] = after
                         item['verified_tools'] = tools_before
                         item['verified_revision'] = _revision(card, after, case, tools_before)
+                        item['retry_requires_change'] = False
                     else:
                         result = 'STALE'
             except subprocess.TimeoutExpired:
                 result = 'AMBIGUOUS'
-            item['verification'] = {'case': case, 'report': report,
-                                    'elapsed_seconds': round(time.monotonic() - begin, 3)}
+            if result in {'AMBIGUOUS', 'DENIED', 'STOPPED'}:
+                clean = False
+            item['verification'] = {'case': case, 'report': report, 'outcome': result,
+                                    'started_at': attempt_started, 'ended_at': _now(),
+                                    'revision': _revision(card, before, case, tools_before),
+                                    'elapsed_seconds': round(time.monotonic() - begin, 3),
+                                    'observed_files_after': after,
+                                    'external_effects_authenticated': False,
+                                    'reconciliation_required': result in {
+                                        'FAILED', 'DENIED', 'AMBIGUOUS', 'STOPPED'},
+                                    'returncode': child.returncode if child is not None else None}
+            history = item.setdefault('attempt_history', [])
+            _require(isinstance(history, list) and len(history) <= item['max_attempts']
+                     and (result == 'NOT_RUN' or len(history) < item['max_attempts']),
+                     'invalid attempt history; preserved')
+            if result != 'NOT_RUN':
+                history.append(item['verification'])
             item['status'] = result
             item['ended_at'] = _now()
+        except PermissionError as error:
+            raise VerificationAccessDenied('access denied; do not repeat the operation') from error
+        except VerificationAccessDenied:
+            raise
+        except Exception as error:
+            raise VerificationUncertain('verification state or effects need reconciliation') from error
         finally:
             if clean:
                 # Remove only our exact report and empty owned directory. Unknown
@@ -443,9 +624,19 @@ def verify(root, source, identifier, run_id, test, case):
                         report_path.unlink()
                     operation.rmdir()
                     item['scratch'] = None
+                    item['cleanup'] = {'status': 'CLEANED', 'retry_prohibited': False}
+                except PermissionError:
+                    item['cleanup'] = {'status': 'ACCESS_DENIED', 'retry_prohibited': True}
                 except (OSError, ValueError):
-                    pass
-        _STATE.write(root, raw, data)
+                    item['cleanup'] = {'status': 'PRESERVED', 'retry_prohibited': True}
+            else:
+                item['cleanup'] = {'status': 'PRESERVED', 'retry_prohibited': True}
+        try:
+            _STATE.write(root, raw, data)
+        except PermissionError as error:
+            raise VerificationAccessDenied('state access denied; do not repeat the write') from error
+        except Exception as error:
+            raise VerificationUncertain('final verification state needs reconciliation') from error
         return dict(item, task=identifier)
 
 
@@ -470,6 +661,8 @@ def main(argv=None):
         if name == 'verify':
             command.add_argument('--test', required=True)
             command.add_argument('--case', required=True)
+            command.add_argument('--listen-stop', action='store_true',
+                                 help='honor an exact STOP line on this process stdin')
         if name == 'reconcile':
             command.add_argument('--effects-reviewed', action='store_true')
     args = parser.parse_args(argv)
@@ -480,17 +673,32 @@ def main(argv=None):
         elif args.command == 'status':
             result = status(args.root, args.source)
         elif args.command == 'verify':
-            result = verify(args.root, args.source, args.task, args.run_id, args.test, args.case)
+            result = verify(args.root, args.source, args.task, args.run_id, args.test, args.case,
+                            sys.stdin if args.listen_stop else None)
         elif args.command == 'reconcile':
             result = reconcile(args.root, args.source, args.task, args.run_id, args.effects_reviewed)
         else:
             result = stop(args.root, args.source, args.task, args.run_id)
         print(json.dumps(result, sort_keys=True, ensure_ascii=True))
-        return 0 if result.get('status') not in {'FAILED', 'AMBIGUOUS', 'STALE'} else 1
+        if result.get('status') == 'STOPPED' and args.command == 'verify':
+            return 130
+        return 0 if result.get('status') not in {'FAILED', 'DENIED', 'AMBIGUOUS', 'STALE', 'NOT_RUN'} else 1
+    except VerificationAccessDenied as error:
+        print(json.dumps({'error': str(error), 'status': 'ACCESS_DENIED',
+                          'reconciliation_required': True, 'retry_prohibited': True}, ensure_ascii=True))
+        return 2
+    except VerificationUncertain as error:
+        print(json.dumps({'error': str(error), 'status': 'AMBIGUOUS',
+                          'reconciliation_required': True}, ensure_ascii=True))
+        return 2
+    except PermissionError:
+        print(json.dumps({'error': 'access denied; do not repeat the operation',
+                          'status': 'ACCESS_DENIED', 'reconciliation_required': True,
+                          'retry_prohibited': True}, ensure_ascii=True))
+        return 2
     except (ValueError, OSError, TypeError, KeyError, RecursionError) as error:
-        uncertain = args.command == 'verify'
-        print(json.dumps({'error': str(error), 'status': 'AMBIGUOUS' if uncertain else 'NOT_RUN',
-                          'reconciliation_required': uncertain}, ensure_ascii=True))
+        print(json.dumps({'error': str(error), 'status': 'NOT_RUN',
+                          'reconciliation_required': False}, ensure_ascii=True))
         return 2
 
 

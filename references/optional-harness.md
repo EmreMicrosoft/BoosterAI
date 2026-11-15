@@ -55,23 +55,48 @@ preserved for inspection; the helper does not run a background cleaner.
 
 `ACTIVE` records host-owned development; a verifier records `VERIFYING` before
 starting its child. A failed or skipped case is `FAILED`; changed code is
-`STALE`. A missing report, timeout or interrupted verifier is `AMBIGUOUS`, not
-an automatic retry. After inspecting real effects, run `reconcile` once to
-observe declared files, then only if the host has actually reviewed the effects
-run `reconcile ... --effects-reviewed`; this is a host declaration, not proof of
-external effects or permission. An additional, explicitly requested `verify`
-is needed to run another test. A completed failure report can be reconciled as
-`FAILED`; a late success report alone cannot establish exit status or freshness.
-The helper cannot guarantee exactly-once effects or determine whether orphaned
-descendants or external services are still active.
+`STALE`. A missing report, conflicting result, zero-test result, timeout or
+interrupted verifier is `AMBIGUOUS`, not an automatic retry. After a failure or
+interruption, run `reconcile` once to observe declared files and inspect actual
+effects. Only after the host has reviewed those effects may it run
+`reconcile ... --effects-reviewed`; the file observations must still match. This
+is a host declaration, not proof of external effects or permission. Following
+`FAILED`, a declared file or verifier must also change after the failure's own
+post-test snapshot before an explicitly requested retry is allowed. A test's own
+side effects do not count as that change. External-only changes cannot satisfy
+this conservative gate automatically; they need a separately supported handoff.
+
+The runner classifies a directly observed Python `PermissionError` as `DENIED`
+without recording its message or path. If that happens before a report can be
+written, its reserved exit code 77 also stops the task; arbitrary test code can
+produce that code, so it is not independent proof of an OS denial. Older reports
+without the denial field remain unrecognized and need manual review. This task
+cannot be reconciled into a retry by the harness, while independently eligible
+tasks may proceed. A caught, transformed, service or policy denial may not be
+recognized; the host must carry forward every actual refusal. A host-side
+permission error is separately reported as `ACCESS_DENIED` and must not be
+retried, including when the state itself cannot be written. An observed failure
+report is never proof that external effects are absent. Sanitized attempt
+summaries are bounded by the attempt limit, while older records can lack that
+history. The helper cannot guarantee exactly-once effects or determine whether
+orphaned descendants or external services are still active.
 
 `stop --task SLICE --run-id RUN_ID` records a project-wide stopped barrier for
-future harness operations. It cannot interrupt a test while that test holds the
-cooperative lock, cannot control unrelated processes, and has no built-in resume
-of the stopped record. The host must enforce a user's STOP immediately, including
-any separately running work. File claims cover cooperating processes only and are
-held during harness operations and acceptance, not while the host edits code
-between commands. Nonparticipating writers can race these checks.
+future harness operations when no verifier holds the cooperative lock. To stop
+a running verifier, start `verify` with `--listen-stop` and send the exact line
+`STOP` followed by a newline to that same verifier's stdin. The harness requests
+termination of its own direct child after recording the STOP request, records
+`STOPPED` when the child is reaped, and prevents new harness work. The child
+receives closed input in this mode. The host must relay a user
+STOP; this is not automatic chat integration. A control-stream read error also
+stops conservatively. Child descendants and external effects may continue, and
+state-write or termination failures remain ambiguous. A denied cleanup is
+reported separately, retains its owned path and is never automatically retried.
+There is no built-in
+resume of a stopped record. The host must enforce STOP for all other work too.
+File claims cover cooperating processes only and are held during harness
+operations and acceptance, not while the host edits code between commands.
+Nonparticipating writers can race these checks.
 
 Attempts, a per-test timeout and a wall-clock elapsed gate are bounded at start;
 the child timeout is limited by remaining wall time. A timeout can leave child
