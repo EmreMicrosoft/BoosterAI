@@ -511,6 +511,16 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
         attempt_started = _now()
         child = None
         after = None
+        state_write_failed = False
+
+        def persist_state():
+            """Write once; never retry failed persistence merely to record denial."""
+            nonlocal raw, state_write_failed
+            try:
+                raw = _STATE.write(root, raw, data)
+            except Exception:
+                state_write_failed = True
+                raise
 
         def persist_stop():
             """Record the STOP request before attempting to terminate the child."""
@@ -518,10 +528,10 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
             data['stopped'] = True
             item['status'] = 'STOP_REQUESTED'
             item['stop_requested_at'] = _now()
-            raw = _STATE.write(root, raw, data)
+            persist_state()
 
         try:
-            raw = _STATE.write(root, raw, data)
+            persist_state()
             env = os.environ.copy()
             for name in ('TEMP', 'TMP', 'TMPDIR'):
                 env[name] = str(operation)
@@ -608,7 +618,23 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
             item['status'] = result
             item['ended_at'] = _now()
         except PermissionError as error:
-            raise VerificationAccessDenied('access denied; do not repeat the operation') from error
+            # Preserve known denial instead of allowing reconciliation to replay it.
+            # Do not retry a failed state write or touch uncertain child effects.
+            clean = False
+            item['status'] = 'DENIED'
+            item['ended_at'] = _now()
+            item['cleanup'] = {'status': 'PRESERVED', 'retry_prohibited': True}
+            persisted = False
+            if not state_write_failed:
+                try:
+                    persist_state()
+                    persisted = True
+                except Exception:
+                    pass
+            detail = ('denial recorded' if persisted else
+                      'denial state not confirmed; preserve uncertainty')
+            raise VerificationAccessDenied(
+                'access denied; do not repeat the operation; ' + detail) from error
         except VerificationAccessDenied:
             raise
         except Exception as error:
