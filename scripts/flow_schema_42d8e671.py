@@ -51,14 +51,14 @@ def _label(value, name):
     """Validate and normalize one explicit node or decision-branch label.
 
     ``value`` must contain nonempty plain text at most 512 characters long;
-    ``name`` labels errors. Leading/trailing whitespace and control characters
-    and Mermaid entity escapes such as ``#35;`` or ``#quot;`` are rejected
-    instead of silently changing the source. Return the text as supplied,
-    without reading files or interpreting it as executable content.
+    ``name`` labels errors. Leading/trailing whitespace, Unicode category Cc
+    control characters and Mermaid entity escapes such as ``#35;`` or
+    ``#quot;`` are rejected instead of silently changing the source. Return the
+    text as supplied, without reading files or interpreting it as executable.
     """
     _require(isinstance(value, str) and bool(value) and value == value.strip()
              and len(value) <= _MAX_LABEL_CHARS
-             and not any(ord(character) < 32 for character in value)
+             and not any(unicodedata.category(character) == "Cc" for character in value)
              and not _ENTITY_ESCAPE.search(value),
              "invalid " + name)
     return value
