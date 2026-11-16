@@ -187,6 +187,20 @@ def scan_manifest(root, manifest):
             'findings': findings, 'privacy_proven': False}
 
 
+def unique_manifest_object(pairs):
+    """Reject duplicate JSON object names without retaining input in diagnostics.
+
+    The JSON decoder calls this for every object, including nested objects, after
+    decoding escaped names. No manifest field or value is included in the error.
+    """
+    result = {}
+    for name, value in pairs:
+        if name in result:
+            raise ValueError('duplicate_manifest_field')
+        result[name] = value
+    return result
+
+
 def main(argv=None):
     """Read one bounded JSON manifest from stdin and emit only redacted results."""
     parser = PrivateParser(description=__doc__)
@@ -198,7 +212,8 @@ def main(argv=None):
         if len(raw) > MAX_INPUT_BYTES:
             raise ScanError('invalid_manifest')
         try:
-            manifest = json.loads(raw.decode('utf-8-sig'))
+            manifest = json.loads(raw.decode('utf-8-sig'),
+                                  object_pairs_hook=unique_manifest_object)
         except (UnicodeError, ValueError, RecursionError) as error:
             raise ScanError('invalid_manifest') from error
         result = scan_manifest(root, manifest)

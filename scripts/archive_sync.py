@@ -66,8 +66,21 @@ def remote_get(url,limit):
         return content
 
 
+def unique_manifest_object(pairs):
+    """Reject duplicate index names at every object depth without echoing input.
+
+    JSON-decoded names, including escaped aliases, are compared before entries
+    are used. The fixed error is safe for the CLI's normal failure reporting.
+    """
+    result = {}
+    for name, value in pairs:
+        require(name not in result, 'duplicate archive manifest field')
+        result[name] = value
+    return result
+
+
 def validate_manifest(raw):
-    require(len(raw)<=MAX_INDEX,'index too large');data=json.loads(raw)
+    require(len(raw)<=MAX_INDEX,'index too large');data=json.loads(raw,object_pairs_hook=unique_manifest_object)
     require(isinstance(data,dict) and isinstance(data.get('entries'),list),'invalid archive manifest')
     if data.get('format') in ('boosterai-index-v2','boosterai-index-v3'):return profile.validate_index(data)
     require(data.get('format')=='boosterai-index-v1','invalid archive manifest')
