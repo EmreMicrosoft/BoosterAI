@@ -85,14 +85,14 @@ def specific_source_url(value):
     """Check only the syntax and repository scope of a specific GitHub link.
 
     Issue, pull-request, immutable commit and immutable blob links are supported.
-    This does not contact GitHub or establish existence, ownership or permission.
+    Only ASCII URL syntax is accepted. This does not contact GitHub or establish existence, ownership or permission.
     """
     if not isinstance(value, str):
         return False
     pattern = (r'https://github\.com/EmreMicrosoft/BoosterAI/'
                r'(?:issues/[1-9][0-9]*|pull/[1-9][0-9]*|commit/[0-9a-f]{40}'
                r'|blob/[0-9a-f]{40}/[A-Za-z0-9._/-]+)')
-    if re.fullmatch(pattern, value, flags=re.IGNORECASE) is None:
+    if re.fullmatch(pattern, value, flags=re.IGNORECASE | re.ASCII) is None:
         return False
     parts = value.split('/')[7:] if '/blob/' in value.lower() else []
     return not parts or all(part not in ('', '.', '..') for part in parts)
