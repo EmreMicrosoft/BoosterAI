@@ -184,9 +184,14 @@ def main(argv=None):
         review = {}
         if args.review is not None:
             path = ordinary_file(root, args.review)
-            if path is None or path.stat().st_size > 65536:
+            limit = 65536
+            if path is None or path.stat().st_size > limit:
                 raise ValueError('review_unavailable_or_too_large')
-            review = json.loads(path.read_text(encoding='utf-8-sig'),
+            with path.open('rb') as stream:
+                raw = stream.read(limit + 1)
+            if len(raw) > limit:
+                raise ValueError('review_unavailable_or_too_large')
+            review = json.loads(raw.decode('utf-8-sig'),
                                 object_pairs_hook=unique_review_object)
         result = evaluate(root, review)
         print(json.dumps(result, indent=2))

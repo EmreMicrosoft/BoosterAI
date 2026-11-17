@@ -63,9 +63,16 @@ def check_freshness(project, path, *additional_paths):
     }
 
 
+class _FreshnessArgumentParser(argparse.ArgumentParser):
+    """Keep caller-provided argument values out of CLI errors."""
+
+    def error(self, _message):
+        super().error('invalid arguments. Use --help for usage.')
+
+
 def main(argv=None):
     """Print the comparison as JSON; exit 1 if the check could not complete."""
-    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser = _FreshnessArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--root', required=True, help='authorized project root')
     parser.add_argument('--path', action='append', required=True,
                         help='exact indexed path authorized for reading (repeat to compare several)')
