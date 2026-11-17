@@ -84,7 +84,9 @@ def unique_manifest_object(pairs):
 
 
 def validate_manifest(raw):
-    require(len(raw)<=MAX_INDEX,'index too large');data=json.loads(raw,object_pairs_hook=unique_manifest_object)
+    require(len(raw) <= MAX_INDEX, 'index too large')
+    data = json.loads(raw, object_pairs_hook=unique_manifest_object,
+                      parse_constant=profile.reject_non_finite_number)
     require(isinstance(data,dict) and isinstance(data.get('entries'),list),'invalid archive manifest')
     if data.get('format') in ('boosterai-index-v2','boosterai-index-v3'):return profile.validate_index(data)
     require(data.get('format')=='boosterai-index-v1','invalid archive manifest')

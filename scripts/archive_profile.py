@@ -11,6 +11,11 @@ class UnsupportedSchemaError(ValueError):
     """Identify unsupported profile constructs even inside schema alternatives."""
 
 
+def reject_non_finite_number(_literal):
+    """Reject non-finite number literals in JSON input."""
+    raise ValueError('non-finite JSON number')
+
+
 def _json_equality_key(value):
     """Return a hashable JSON equality key for constants, options and uniqueness.
 
