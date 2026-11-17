@@ -62,6 +62,24 @@ status operation may update stale or interrupted run records. For an inventory
 that must be read-only, inspect the persisted state and label it as a stored
 observation.
 
+### Reconcile the outgoing scope
+
+Before transferring work, identify the outgoing task and turn, the exact
+slice and writable files, and the current acceptance revision. Use the
+supported task readback to observe the outgoing action and its recorded
+result. Compare the attributable file or target effects with the recorded
+before and after state. A task's idle or completed status describes its
+turn. Confirm any required child outcome, external effect and release of
+the scope separately. For a cooperative claim, check evidence from the
+actual holder and claim lifecycle.
+
+Keep dependent writes pending while necessary effects or ownership remain
+uncertain. Preserve STOP, refusals and unresolved records. When the scope
+is reconciled, assign it once to the authorized recipient and match the
+incoming item and actual result to that assignment. Reuse earlier
+acceptance only within its current revision, dependencies, target and
+conditions.
+
 ## Accept a native adapter only on observed effects
 
 On a selected host exposing a supported native interface, bind the actual
