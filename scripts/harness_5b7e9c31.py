@@ -263,6 +263,13 @@ def preflight(root, source, requested_python=None):
                 'state_modified': False}
 
 
+def _require_test_path(test):
+    key = _CORE._file_key(_CORE._relative(test))
+    protected = ('_partials', '_boosterai/_partials')
+    _require(not any(key == path or key.startswith(path + '/') for path in protected),
+             'acceptance test must be outside protected partials directories')
+
+
 def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3600):
     """Register one host-owned task without dispatching development or tests.
 
@@ -275,7 +282,7 @@ def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3
     _require(type(timeout) is int and 1 <= timeout <= 600, 'test timeout must be 1..600 seconds')
     _require(type(max_elapsed) is int and 1 <= max_elapsed <= 604800,
              'elapsed limit must be 1..604800 seconds')
-    _CORE._relative(test)
+    _require_test_path(test)
     with _STATE.locked(root) as root:
         bundle, cards = _source(root, source)
         data, raw = _STATE.read(root)
@@ -554,6 +561,7 @@ def verify(root, source, identifier, run_id, test, case, stop_stream=None):
     direct child and sets a persistent project STOP barrier. This executes
     project code: the caller must inspect and authorize the test.
     """
+    _require_test_path(test)
     root = _CORE._root(root)
     _, initial_cards = _source(root, source)
     _require(identifier in initial_cards, 'unknown task')

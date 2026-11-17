@@ -105,6 +105,16 @@ def validate_manifest(raw):
     return data
 
 
+def _read_snapshot_bytes(path, limit, remaining, size_error):
+    """Read at most one byte beyond the smaller applicable quota."""
+    maximum = min(limit, remaining)
+    with path.open('rb') as stream:
+        data = stream.read(maximum + 1)
+    require(len(data) <= maximum,
+            'snapshot total size exceeded' if remaining < limit else size_error)
+    return data
+
+
 def verify_snapshot(work,commit):
     require(re.fullmatch(r'[0-9a-f]{40}',commit) is not None,'invalid snapshot commit')
     directory=safe(work,'snapshots/'+commit)
@@ -114,11 +124,17 @@ def verify_snapshot(work,commit):
     )
     require(isinstance(meta,dict),'snapshot metadata must be an object')
     require(meta.get('commit')==commit and meta.get('repository')==REPOSITORY,'snapshot origin mismatch')
-    raw=safe(directory,'index.json').read_bytes();require(digest(raw)==meta.get('index_sha256'),'local manifest modified')
+    raw = _read_snapshot_bytes(safe(directory, 'index.json'), MAX_INDEX, MAX_TOTAL, 'index too large')
+    require(digest(raw)==meta.get('index_sha256'),'local manifest modified')
     data=validate_manifest(raw)
+    total = len(raw)
     for entry in data['entries']:
-        content=safe(directory,'code/'+entry['code_sha256']+'.txt').read_bytes()
+        content = _read_snapshot_bytes(
+            safe(directory, 'code/' + entry['code_sha256'] + '.txt'),
+            MAX_CODE, MAX_TOTAL - total, 'local downloaded source too large',
+        )
         require(digest(content)==entry['code_sha256'],'local downloaded source modified')
+        total += len(content)
     return data
 
 

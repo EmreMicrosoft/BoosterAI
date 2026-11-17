@@ -39,7 +39,7 @@ class ArchiveSearchSnapshotMetadataTest(unittest.TestCase):
                 output = io.StringIO()
                 with (
                     patch.object(Path, 'mkdir', side_effect=AssertionError('search created storage')) as mkdir,
-                    patch.object(Path, 'read_bytes', side_effect=AssertionError('metadata reached index')) as read_bytes,
+                    patch.object(Path, 'open', side_effect=AssertionError('metadata reached index')) as open_file,
                     patch.object(Path, 'read_text', autospec=True,
                                  side_effect=lambda path, *, encoding: texts[path]) as read_text,
                     patch.object(sys, 'argv', ['archive_sync.py', 'search', '--root', str(ROOT)]),
@@ -53,7 +53,7 @@ class ArchiveSearchSnapshotMetadataTest(unittest.TestCase):
                     call(active_path, encoding='utf-8'),
                     call(metadata_path, encoding='utf-8'),
                 ])
-                read_bytes.assert_not_called()
+                open_file.assert_not_called()
                 mkdir.assert_not_called()
 
 
