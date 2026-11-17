@@ -350,7 +350,12 @@ def workspace_init(root, records_existing=None, create_records=False, schema=Non
 
 def schema_status(root):
     root = checked_root(root)
-    data = json.loads(checked(root, '_boosterAI/algorithm.provenance.json').read_text(encoding='utf-8'))
+    provenance = checked(root, '_boosterAI/algorithm.provenance.json')
+    try:
+        text = provenance.read_text(encoding='utf-8')
+    except FileNotFoundError:
+        raise ValueError('schema provenance record is missing') from None
+    data = json.loads(text)
     require(isinstance(data, dict) and isinstance(data.get('source'), str), 'invalid provenance')
     source = checked(root, data['source'])
     working = checked(root, '_boosterAI/algorithm.md')
