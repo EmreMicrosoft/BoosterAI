@@ -108,7 +108,10 @@ def validate_manifest(raw):
 def verify_snapshot(work,commit):
     require(re.fullmatch(r'[0-9a-f]{40}',commit) is not None,'invalid snapshot commit')
     directory=safe(work,'snapshots/'+commit)
-    meta=json.loads(safe(directory,'snapshot.json').read_text(encoding='utf-8'))
+    meta = json.loads(
+        safe(directory, 'snapshot.json').read_text(encoding='utf-8'),
+        object_pairs_hook=unique_manifest_object,
+    )
     require(isinstance(meta,dict),'snapshot metadata must be an object')
     require(meta.get('commit')==commit and meta.get('repository')==REPOSITORY,'snapshot origin mismatch')
     raw=safe(directory,'index.json').read_bytes();require(digest(raw)==meta.get('index_sha256'),'local manifest modified')
