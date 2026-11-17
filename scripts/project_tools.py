@@ -416,7 +416,8 @@ def archive_search(repository, query='', category=None, tag=None, include_relate
         if all(word in haystack for word in words) and (category is None or category in categories or category in aliases or category=='/'.join(categories)) and (tag is None or tag in entry.get('tags',[])):
             result=dict(entry)
             if include_related:
-                links=profile.related_links(data,entry) if data.get('format')=='boosterai-index-v3' else []
+                links = (profile._related_links_from_validated_index(data, entry)
+                         if data.get('format') == 'boosterai-index-v3' else [])
                 related_by_record[entry['name']]=links
                 if 'related_files' not in result:result['related_files']=links
             results.append(result)

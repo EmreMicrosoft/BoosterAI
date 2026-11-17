@@ -77,8 +77,8 @@ def main(argv=None):
     parser.add_argument('--path', action='append', required=True,
                         help='exact indexed path authorized for reading (repeat to compare several)')
     args = parser.parse_args(argv)
-    if len(args.root) != 1:
-        parser.error('exactly one project root is required')
+    if len(args.root) != 1 or not args.root[0]:
+        parser.error('exactly one nonempty project root is required')
     try:
         result = check_freshness(args.root[0], *args.path)
     except FreshnessError as error:

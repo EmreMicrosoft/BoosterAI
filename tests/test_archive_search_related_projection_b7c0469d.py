@@ -126,6 +126,19 @@ class ArchiveSearchRelatedProjectionTest(unittest.TestCase):
                 self.assertEqual(result['results'][0]['additional_metadata'], EXTRA)
                 self.assertEqual(result['related_files_by_record'], {'example': []})
 
+    def test_v3_handlers_validate_the_index_once(self):
+        raw_index, _, _ = archive_with_graph(legacy=False)
+        manifest = json.loads(raw_index)
+        for read in (root_results, snapshot_results):
+            with (
+                self.subTest(reader=read.__name__),
+                patch.object(archive_profile, 'validate_index',
+                             wraps=archive_profile.validate_index) as validate,
+            ):
+                result = read(raw_index)
+                self.assertEqual([entry['name'] for entry in result['results']], ['example'])
+                validate.assert_called_once_with(manifest)
+
     def test_v3_graph_remains_separate_from_legacy_value(self):
         for legacy in (True, False):
             raw_index, example, reference = archive_with_graph(legacy=legacy)
@@ -146,7 +159,10 @@ class ArchiveSearchRelatedProjectionTest(unittest.TestCase):
     def test_root_opt_out_preserves_legacy_field_and_skips_graph_lookup(self):
         for legacy in (True, False):
             raw_index, _, _ = archive_with_graph(legacy=legacy)
-            with self.subTest(legacy=legacy), patch.object(archive_profile, 'related_links') as lookup:
+            with (
+                self.subTest(legacy=legacy),
+                patch.object(archive_profile, '_related_links_from_validated_index') as lookup,
+            ):
                 result = root_results(raw_index, include_related=False)
                 lookup.assert_not_called()
                 self.assertEqual(result['related_files_by_record'], {})

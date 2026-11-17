@@ -300,6 +300,11 @@ def related_links(index, code_or_entry):
     if index.get('format') == 'boosterai-index-v1':
         return []
     validate_index(index)
+    return _related_links_from_validated_index(index, code_or_entry)
+
+
+def _related_links_from_validated_index(index, code_or_entry):
+    """Project canonical links from an index already validated by the reader."""
     if index.get('format') == 'boosterai-index-v2':
         return []
     if isinstance(code_or_entry, dict):

@@ -351,6 +351,7 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(collision.read_text(),'do not overwrite')
     def test_workspace_real_cli_and_preservation(self):
         source=self.root/'existing-schema.md';source.write_text('# Existing schema\nunchanged source')
+        original_source = source.read_bytes()
         record=self.root/'existing-record.md';record.write_text('existing record owner')
         args=[sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),'workspace-init','--root',str(self.root),'--records-existing','existing-record.md','--schema','existing-schema.md']
         result=subprocess.run(args,capture_output=True,text=True)
@@ -366,11 +367,11 @@ class CollectorTests(unittest.TestCase):
             'schema-status', '--root', str(self.root),
         ]
 
-        def assert_schema_status(source_changed):
+        def assert_schema_status(source_changed, working_copy_changed=False):
             expected = {
                 'source': source.name,
                 'source_changed': source_changed,
-                'working_copy_changed': False,
+                'working_copy_changed': working_copy_changed,
                 'acceptance_verified': False,
             }
             self.assertEqual(b.schema_status(self.root), expected)
@@ -384,6 +385,10 @@ class CollectorTests(unittest.TestCase):
         assert_schema_status(True)
         self.assertEqual((self.root/'_boosterAI/algorithm.md').read_text(),'# Existing schema\nunchanged source')
         with self.assertRaisesRegex(ValueError,'reconcile'):b.workspace_init(self.root, schema='existing-schema.md')
+
+        source.write_bytes(original_source)
+        (self.root / '_boosterAI/algorithm.md').write_bytes(b'# Edited working copy\n')
+        assert_schema_status(source_changed=False, working_copy_changed=True)
     def test_workspace_new_records_no_overwrite(self):
         result=b.workspace_init(self.root,create_records=True)
         relative=Path('_boosterAI')/'PROJECT_RECORDS.md'

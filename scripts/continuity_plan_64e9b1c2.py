@@ -23,6 +23,7 @@ ordinary concurrent changes but are not a sandbox against hostile replacement;
 do not assess files being actively modified by an uncoordinated writer.
 """
 
+from bisect import bisect_left
 import hashlib
 import json
 import os
@@ -261,8 +262,8 @@ def _normal_plan(plan):
     conflicting file owners, slice/file-owner mismatches, unordered shared claims
     or producer/consumer pairs raise ValueError. Every claimed writable file must
     name the slice owner; delegated writes require a separate supported handoff.
-    File claims use Unicode/case-folded comparison for portability; an explicit
-    direct or transitive dependency permits shared claims in sequence.
+    Paths use Unicode/case-folded comparison. A declared file cannot contain
+    another declared file. A dependency permits shared claims in sequence.
     """
     _require(isinstance(plan, dict) and isinstance(plan.get("nodes"), list)
              and bool(plan["nodes"]), "plan must contain a nonempty nodes list")
@@ -307,9 +308,14 @@ def _normal_plan(plan):
             "outputs": outputs, "depends_on": sorted(dependencies),
             "target": target, "acceptance": dict(acceptance),
         }
-    owner_paths = sorted(owners)
-    _require(not any(other.startswith(path + "/") for index, path in enumerate(owner_paths)
-                     for other in owner_paths[index + 1:]), "claimed files cannot contain one another")
+    file_paths = sorted(owners.keys() | {
+        _file_key(path) for node in nodes.values() for path in node["inputs"]
+    })
+    for path in file_paths:
+        prefix = path + "/"
+        following = bisect_left(file_paths, prefix)
+        _require(following == len(file_paths) or not file_paths[following].startswith(prefix),
+                 "declared files cannot contain one another")
     order, ancestors = dependency_order({
         item: node["depends_on"] for item, node in nodes.items()
     })

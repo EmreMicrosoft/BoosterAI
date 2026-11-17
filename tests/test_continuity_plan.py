@@ -334,5 +334,35 @@ class ContinuityPlanTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "single-linked"):
             continuity.evaluate(self.project, {"nodes": [node("a", inputs=("linked.txt",))]})
 
+class ContinuityFileContractTests(unittest.TestCase):
+    """Check declared files before any hash observations are attempted."""
+
+    def test_declared_file_cannot_also_be_another_declared_files_directory(self):
+        """Reject impossible input and claim layouts regardless of declaration order."""
+        plans = (
+            [node("produce", output="Folder/File"),
+             node("consume", inputs=("folder/file/entry.txt",), dependencies=("produce",))],
+            [node("produce", inputs=("folder/file",), output="folder/file/entry.txt")],
+            [node("read", inputs=("folder/file", "folder/file-sibling", "folder/file/entry.txt"))],
+        )
+        for nodes in plans:
+            with self.subTest(nodes=nodes), patch.object(continuity, "_read_hash") as observe:
+                with self.assertRaisesRegex(ValueError, "declared files cannot contain one another"):
+                    continuity.evaluate(ROOT, {"nodes": nodes})
+                observe.assert_not_called()
+
+    def test_exact_producer_output_is_a_valid_consumer_input(self):
+        """Keep an exact file dependency valid without treating readiness as execution."""
+        plan = {"nodes": [
+            node("produce", output="Folder/File"),
+            node("consume", inputs=("Folder/File",), dependencies=("produce",)),
+        ]}
+        with patch.object(continuity, "_read_hash", return_value=None):
+            result = continuity.evaluate(ROOT, plan)
+        self.assertEqual(result["ready"], ["produce"])
+        self.assertFalse(result["execution_authorized"])
+        self.assertFalse(result["product_acceptance_verified"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

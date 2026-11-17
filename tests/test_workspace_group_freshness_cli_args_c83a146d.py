@@ -58,5 +58,14 @@ class FreshnessCliArgumentTest(unittest.TestCase):
                 self.assertNotIn('other-root', stderr)
 
 
+    def test_empty_root_is_rejected_before_comparison(self):
+        for root in (['--root='], ['--root', '']):
+            with self.subTest(root=root):
+                code, stdout, stderr = self.invoke_parser(root + ['--path', '_partials/README.md'])
+                self.assertEqual(code, 2)
+                self.assertEqual(stdout, '')
+                self.assertTrue(stderr.rstrip().endswith('invalid arguments. Use --help for usage.'))
+
+
 if __name__ == '__main__':
     unittest.main()

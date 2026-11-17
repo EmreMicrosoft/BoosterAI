@@ -497,7 +497,8 @@ def main():
     runtime = sub.add_parser('runtime-check')
     runtime.add_argument('--language', choices=('python', 'dotnet'), required=True)
     runtime.add_argument('--observed-version')
-    runtime.add_argument('--requested-version', help='Only for the user\'s explicit version request')
+    runtime.add_argument('--requested-version', action='append',
+                         help='Only for the user\'s explicit version request')
     sub.add_parser('partials-init').add_argument('--root', required=True)
     sub.add_parser('schema-status').add_argument('--root', required=True)
     workspace = sub.add_parser('workspace-init')
@@ -514,7 +515,11 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == 'runtime-check':
-            result = runtime_check(args.language, args.observed_version, args.requested_version)
+            requested_versions = args.requested_version or ()
+            if len(set(requested_versions)) > 1:
+                runtime.error('conflicting --requested-version values')
+            requested_version = requested_versions[0] if requested_versions else None
+            result = runtime_check(args.language, args.observed_version, requested_version)
         elif args.command == 'schema-status':
             result = schema_status(args.root)
         elif args.command == 'workspace-init':

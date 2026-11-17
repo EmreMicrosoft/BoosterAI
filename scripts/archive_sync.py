@@ -437,7 +437,8 @@ def search(repository,query='',category=None,tag=None):
             result=dict(entry);result['local_inert_source']='snapshots/'+active['commit']+'/code/'+entry['code_sha256']+'.txt';result['untrusted']=True
             # A snapshot downloads only current sources. Historical relationships
             # remain discoverable metadata, not an assertion that their bytes exist locally.
-            links=profile.related_links(data,entry) if data.get('format')=='boosterai-index-v3' else []
+            links = (profile._related_links_from_validated_index(data, entry)
+                     if data.get('format') == 'boosterai-index-v3' else [])
             current={item['code']:item for item in data['entries']}
             related_links=[]
             for link in links:
