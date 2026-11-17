@@ -107,6 +107,17 @@ For a contribution offered by another user, follow [community contributions](ref
 
 Before a shared publication, follow [publication privacy](references/publication-privacy.md): inspect the exact proposed files and every commit reachable from each proposed ref, including paths, metadata and messages. A sanitized current snapshot alone does not make older reachable history safe. Keep private terms and project evidence out of public artifacts; a scanner only helps with known patterns and cannot establish complete privacy. Use only the owner's authorized destination and history action, and never use a force push or rewrite an existing history without specific authority.
 
+## Image reading
+
+If an image is unreadable, follow the
+[image-reading procedure](references/image-reading-procedure.md). Inspect the
+original, inspect a cropped, enlarged or enhanced view, and compare OCR output
+with the image. Count earlier attempts at these methods and complete the
+remaining authorized and available methods. If a different method failed,
+try all three where authorized and available. Report unavailable or unauthorized
+methods as NOT_RUN.
+Request transcription only after all three methods were attempted and failed.
+
 ## Hygiene and delivery
 
 At the end of a local task that creates or saves function examples, list each resulting file in project-root `_partials/` or `_boosterAI/_partials/` as a clickable link when the current host supports a valid file-link format. Verify that each target exists and use the actual path, not a guessed URL or an unrelated file. Include a short purpose and the observed test status. If valid clickable local links are unsupported, give the exact project-relative path and state that limitation; do not claim a link was delivered or opened. Keep private local paths in the authorized local task audience, not public repository reports or another project. These are navigation links for reading examples, never production dependencies.

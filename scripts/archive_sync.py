@@ -44,11 +44,14 @@ def safe(root,relative):
     return path
 
 
-def storage(repository):
+def storage(repository, *, create=True):
+    """Resolve safe local storage, creating it for writers by default."""
     root=Path(repository).absolute();require(root.is_dir(),'local repository missing')
     for ancestor in (root,*root.parents):
         info=ancestor.lstat();require(not stat.S_ISLNK(info.st_mode) and not (getattr(info,'st_file_attributes',0)&0x400),'root link/reparse forbidden')
-    root=root.resolve();work=safe(root,'_boosterAI/archive-sync');work.mkdir(parents=True,exist_ok=True)
+    root=root.resolve();work=safe(root,'_boosterAI/archive-sync')
+    if create:
+        work.mkdir(parents=True,exist_ok=True)
     return work
 
 
@@ -392,7 +395,12 @@ def sync(repository,force=False,fetch=remote_get,now=None,scratch=None):
 
 
 def search(repository,query='',category=None,tag=None):
-    work=storage(repository);active=json.loads(safe(work,'active.json').read_text(encoding='utf-8'))
+    """Read and filter an existing snapshot without creating archive storage."""
+    work = storage(repository, create=False)
+    active = json.loads(
+        safe(work, 'active.json').read_text(encoding='utf-8'),
+        object_pairs_hook=unique_manifest_object,
+    )
     require(isinstance(active,dict),'active pointer must be an object')
     data=verify_snapshot(work,active['commit']);results=[];related_by_record={}
     for entry in data['entries']:
