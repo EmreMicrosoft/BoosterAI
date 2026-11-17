@@ -9,6 +9,7 @@ executable dependency DAG or proof that any action or acceptance test ran.
 """
 
 import hashlib
+from io import StringIO
 import re
 import unicodedata
 
@@ -79,11 +80,11 @@ def _diagram(document):
     """
     _require(isinstance(document, str) and len(document) <= _MAX_DOCUMENT_CHARS,
              "invalid or oversized Markdown document")
-    lines = document.splitlines(keepends=True)
     state = None
     captured = []
     content = []
-    for line in lines:
+    # Recognize CR/LF endings and retain them for hashing.
+    for line in StringIO(document, newline=""):
         text = line.rstrip("\r\n")
         match = _FENCE.fullmatch(text)
         if state is None:

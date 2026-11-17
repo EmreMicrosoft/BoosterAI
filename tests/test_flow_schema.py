@@ -161,6 +161,23 @@ class MermaidFixtureTests(unittest.TestCase):
             with self.subTest(source=source[:30]), self.assertRaises(ValueError):
                 schema.parse_mermaid(source)
 
+    def test_markdown_fence_starts_only_after_physical_line_endings(self):
+        """A separator within prose cannot start a Mermaid block."""
+        source = document(["A[Start] --> B[End]"])
+        opening = "```mermaid"
+        diagram = "flowchart TD\nA[Start] --> B[End]\n"
+        prefaced = source.replace(opening, "Plain text\n" + opening, 1)
+        for ending in ("\n", "\r\n", "\r"):
+            with self.subTest(ending=ending):
+                text = prefaced.replace("\n", ending)
+                result = schema.parse_mermaid(text)
+                expected_diagram = diagram.replace("\n", ending).encode("utf-8")
+                self.assertEqual(result["diagram_sha256"], hashlib.sha256(expected_diagram).hexdigest())
+        for separator in ("\u2028", "\u0085"):
+            malformed = source.replace(opening, "Plain text" + separator + opening, 1)
+            with self.subTest(separator=separator), self.assertRaises(ValueError):
+                schema.parse_mermaid(malformed)
+
     def test_mermaid_lookalike_inside_another_fence_is_not_a_graph(self):
         """A nested code example cannot impersonate a top-level source graph."""
         decoy = ("````python\n```mermaid\nflowchart TD\n"

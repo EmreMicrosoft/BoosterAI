@@ -162,12 +162,18 @@ def scan_manifest(root, manifest):
     A clean result is explicitly not proof of complete privacy. Prefix matching
     accepts old Git IDs from seven through forty hex digits only when bounded by
     non-hex characters, avoiding matches inside contiguous SHA-256 values.
+    Reject a second selection of the same file before reading it again.
     """
     root = validated_root(root)
     files, terms, prefixes = parse_manifest(manifest)
     findings = []
+    selected_files = set()
     for index, relative in enumerate(files):
         path, info = contained_file(root, relative, index)
+        identity = (info.st_dev, info.st_ino) if info.st_ino else path.as_posix()
+        if identity in selected_files:
+            raise ScanError('duplicate_file', index)
+        selected_files.add(identity)
         content = read_checked(path, info, index)
         searchable = relative + '\n' + content
         folded = searchable.casefold()

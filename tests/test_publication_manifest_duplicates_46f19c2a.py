@@ -59,6 +59,22 @@ class PublicationManifestAcceptance(unittest.TestCase):
         self.assertNotIn(TERM, result.stdout)
         self.assertEqual(LICENSE.read_bytes(), before)
 
+    def test_repeated_file_alias_is_rejected_without_echoing_input(self):
+        """Reject a manifest that selects the existing license through two aliases."""
+        before = LICENSE.read_bytes()
+        manifest = json.dumps({'files': ['LICENSE', './LICENSE'], 'private_terms': [TERM],
+                               'old_commits': []})
+        result = subprocess.run(
+            [sys.executable, '-I', '-S', '-B', str(SCANNER), '--root', str(ROOT)],
+            input=manifest, text=True, capture_output=True, cwd=ROOT, timeout=15, check=False)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.stderr, '')
+        self.assertEqual(json.loads(result.stdout), {
+            'status': 'ERROR', 'error': 'duplicate_file', 'file_index': 1, 'privacy_proven': False})
+        for private in (TERM, 'LICENSE', str(ROOT)):
+            self.assertNotIn(private, result.stdout)
+        self.assertEqual(LICENSE.read_bytes(), before)
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
