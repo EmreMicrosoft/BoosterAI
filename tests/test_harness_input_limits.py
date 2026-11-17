@@ -60,5 +60,23 @@ class IntegerBoundaries(unittest.TestCase):
                                           'Example.test_case', **values)
                         lock.assert_not_called()
 
+
+class TestPathContract(unittest.TestCase):
+    def test_requires_exact_python_suffix(self):
+        for path in ('tests/example.py', 'tests.v1/example.case.py'):
+            with self.subTest(path=path):
+                harness._require_test_path(path)
+
+        for path in ('tests/example', 'tests/example.md', 'tests/example.PY'):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(ValueError, 'test must be a project Python file'):
+                    harness._require_test_path(path)
+
+        with self.assertRaisesRegex(ValueError, 'noncanonical path'):
+            harness._require_test_path('tests/../example.md')
+        with self.assertRaisesRegex(ValueError, 'outside protected partials directories'):
+            harness._require_test_path('_boosterAI/_partials/example.md')
+
+
 if __name__ == '__main__':
     unittest.main()

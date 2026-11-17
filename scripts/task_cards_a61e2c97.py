@@ -10,6 +10,7 @@ import argparse
 from bisect import bisect_left
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import sys
@@ -336,7 +337,7 @@ def validate_cards(source, bundle):
 def main(argv=None):
     """Handle a bounded JSON request through the real, non-executing CLI.
 
-    ``generate`` reads a source object from stdin; ``validate`` reads an object
+    ``generate`` reads a UTF-8 source object from stdin; ``validate`` reads an object
     with exactly ``source`` and ``bundle``. Emit JSON to stdout and return 0 on
     success or 2 for malformed input or invalid plans. Payloads are never logged,
     written to files, sent to a network, or interpreted as shell commands.
@@ -345,7 +346,12 @@ def main(argv=None):
     parser.add_argument("mode", choices=("generate", "validate"))
     args = parser.parse_args(argv)
     try:
-        raw = sys.stdin.read(_MAX_STDIN + 1)
+        # Keep the character limit and avoid the platform's default pipe codec.
+        stream = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="strict")
+        try:
+            raw = stream.read(_MAX_STDIN + 1)
+        finally:
+            stream.detach()
         _require(len(raw) <= _MAX_STDIN, "input too large")
         request = json.loads(raw, object_pairs_hook=_unique_object)
         if args.mode == "generate":

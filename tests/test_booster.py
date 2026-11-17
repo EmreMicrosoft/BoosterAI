@@ -422,4 +422,71 @@ class CollectorTests(unittest.TestCase):
         result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/booster.py'),'validate',str(p)],capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stdout);self.assertTrue(json.loads(result.stdout)['valid'])
 
+
+class WorkspaceDefaultCliTests(unittest.TestCase):
+    def setUp(self):
+        self.root = workspace(self)
+        self.owned = self.root / '_boosterAI'
+        self.partials = self.owned / '_partials'
+        self.partials.mkdir(parents=True)
+        (self.owned / 'algorithm.md').write_bytes(b'# Existing algorithm\n')
+        (self.owned / 'README.md').write_bytes(b'# Existing workspace\n')
+        (self.partials / 'README.md').write_bytes(b'# Existing partial index\n')
+        (self.root / 'PROJECT_RECORDS.md').write_bytes(b'# Existing root records\r\n')
+        self.nested_record = self.owned / 'PROJECT_RECORDS.md'
+
+    def _ordinary_path(self, path):
+        info = path.lstat()
+        self.assertFalse(path.is_symlink() or getattr(info, 'st_file_attributes', 0) & 0x400)
+        return info
+
+    def _snapshot(self):
+        paths = [self.root]
+        for directory in (self.root, self.owned, self.partials):
+            self._ordinary_path(directory)
+            self.assertTrue(directory.is_dir())
+            paths.extend(directory.iterdir())
+
+        state = {}
+        for path in paths:
+            info = self._ordinary_path(path)
+            state[path.relative_to(self.root)] = (
+                info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns,
+                path.read_bytes() if path.is_file() else None,
+            )
+        return state
+
+    def _create_records(self):
+        return subprocess.run(
+            [sys.executable, '-I', '-S', '-B', str(ROOT / 'scripts/booster.py'),
+             'workspace-init', '--root', str(self.root), '--create-records'],
+            capture_output=True, text=True,
+        )
+
+    def test_workspace_create_records_reuses_existing_root_record(self):
+        before = self._snapshot()
+        result = self._create_records()
+        self.assertEqual(self._snapshot(), before)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, '')
+        report = json.loads(result.stdout)
+        self.assertEqual(report['project_record'], 'PROJECT_RECORDS.md')
+        self.assertEqual(report['records_status'], 'selected')
+        self.assertFalse(report['created'])
+        self.assertTrue(report['preserved_existing'])
+        self.assertEqual(report['algorithm'], 'preserved_existing')
+        self.assertFalse(self.nested_record.exists())
+
+    def test_workspace_create_records_rejects_both_defaults_without_changes(self):
+        self.nested_record.write_bytes(b'# Existing nested records\n')
+        before = self._snapshot()
+        result = self._create_records()
+        self.assertEqual(self._snapshot(), before)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, '')
+        self.assertEqual(json.loads(result.stdout), {
+            'error': 'multiple project records exist; select one with --records-existing',
+        })
+
+
 if __name__=='__main__':unittest.main(verbosity=2)

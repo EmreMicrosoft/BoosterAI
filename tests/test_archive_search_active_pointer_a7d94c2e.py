@@ -62,6 +62,14 @@ class ArchiveSearchActivePointerTest(unittest.TestCase):
             with self.subTest(diagnostic=diagnostic):
                 self.assertIn(diagnostic, self.search_failure(payload))
 
+    def test_search_rejects_invalid_explicit_repository_before_opening_snapshot(self):
+        commit = '0' * 40
+        repositories = ('urn:example:archive-readback', '', None, True, 1, [], {})
+        for repository in repositories:
+            with self.subTest(repository=repository):
+                payload = json.dumps({'commit': commit, 'repository': repository}).encode('utf-8')
+                self.assertEqual(self.search_failure(payload), 'active pointer repository mismatch')
+
     def test_search_allows_same_metadata_name_in_separate_objects(self):
         commit = '0' * 40
         payload = json.dumps({

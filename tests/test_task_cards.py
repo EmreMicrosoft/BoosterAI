@@ -2,10 +2,12 @@
 
 import copy
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -500,6 +502,59 @@ class TaskCardTests(unittest.TestCase):
             with self.subTest(missing=missing), patch.object(package, "checked", side_effect=select):
                 with self.assertRaisesRegex(ValueError, "missing package file"):
                     package.self_check(ROOT)
+
+
+class TaskCardStdinTests(unittest.TestCase):
+    def test_real_cli_reads_utf8_independent_of_locale(self):
+        owner = "M\u00fcnchen"
+        task = task_slice("review", owner=owner, writes={"work/caf\u00e9.py": owner})
+        task["acceptance"] = "The result preserves \u00e7a\u011fla"
+        source = {"revision": "r1", "nodes": [
+            {"id": "review", "depends_on": [], "slices": [task]},
+        ]}
+        bundle = cards.generate_cards(source)
+        command = [sys.executable, "-I", "-S", "-B", "-X", "utf8=0",
+                   str(ROOT / "scripts/task_cards_a61e2c97.py")]
+        for mode, request, expected in (
+            ("generate", source, bundle),
+            ("validate", {"source": source, "bundle": bundle}, cards.validate_cards(source, bundle)),
+        ):
+            with self.subTest(mode=mode):
+                actual = subprocess.run(
+                    [*command, mode], input=json.dumps(request, ensure_ascii=False).encode("utf-8"),
+                    cwd=ROOT, capture_output=True, timeout=15,
+                )
+                self.assertEqual(actual.returncode, 0, actual.stdout + actual.stderr)
+                self.assertEqual(actual.stderr, b"")
+                self.assertEqual(json.loads(actual.stdout), expected)
+
+        invalid_input = json.dumps(source, ensure_ascii=False).encode("utf-8")
+        invalid_input = invalid_input.replace(task["acceptance"].encode("utf-8"), b"\xff", 1)
+        invalid = subprocess.run([*command, "generate"], input=invalid_input,
+                                 cwd=ROOT, capture_output=True, timeout=15)
+        self.assertEqual(invalid.returncode, 2, invalid.stdout + invalid.stderr)
+        report = json.loads(invalid.stdout)
+        self.assertFalse(report["valid"])
+        self.assertIn("utf-8", report["error"])
+        self.assertEqual(invalid.stderr, b"")
+
+    def test_input_limit_still_counts_decoded_characters(self):
+        source = source_graph()
+        source["revision"] = "caf\u00e9"
+        document = json.dumps(source, ensure_ascii=False)
+        for text, expected in ((document, 0), (document + " ", 2)):
+            with self.subTest(characters=len(text)):
+                input_stream = SimpleNamespace(buffer=io.BytesIO(text.encode("utf-8")))
+                output = io.StringIO()
+                with (patch.object(sys, "stdin", input_stream), patch.object(sys, "stdout", output),
+                      patch.object(cards, "_MAX_STDIN", len(document))):
+                    self.assertEqual(cards.main(["generate"]), expected)
+                self.assertFalse(input_stream.buffer.closed)
+                if expected:
+                    self.assertEqual(json.loads(output.getvalue()),
+                                     {"valid": False, "error": "input too large"})
+                else:
+                    self.assertEqual(json.loads(output.getvalue()), cards.generate_cards(source))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ import hashlib
 import importlib.util
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import stat
 import subprocess
@@ -264,10 +264,12 @@ def preflight(root, source, requested_python=None):
 
 
 def _require_test_path(test):
-    key = _CORE._file_key(_CORE._relative(test))
+    relative = _CORE._relative(test)
+    key = _CORE._file_key(relative)
     protected = ('_partials', '_boosterai/_partials')
     _require(not any(key == path or key.startswith(path + '/') for path in protected),
              'acceptance test must be outside protected partials directories')
+    _require(PurePosixPath(relative).suffix == '.py', 'acceptance test must be a project Python file')
 
 
 def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3600):

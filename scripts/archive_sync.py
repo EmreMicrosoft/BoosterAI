@@ -428,6 +428,7 @@ def search(repository,query='',category=None,tag=None):
     work = storage(repository, create=False)
     active = _read_metadata_json(safe(work, 'active.json'), 'active pointer too large')
     require(isinstance(active,dict),'active pointer must be an object')
+    require(active.get('repository', REPOSITORY) == REPOSITORY, 'active pointer repository mismatch')
     data=verify_snapshot(work,active['commit']);results=[];related_by_record={}
     for entry in data['entries']:
         aliases=entry.get('categoryAliases',[])
