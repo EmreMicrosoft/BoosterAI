@@ -432,7 +432,7 @@ def search(repository,query='',category=None,tag=None):
     for entry in data['entries']:
         aliases=entry.get('categoryAliases',[])
         text=' '.join([entry['name'],entry['title'],*entry['categories'],*aliases,*entry['tags']]).lower()
-        if all(w in text for w in query.lower().split()) and (not category or category in entry['categories'] or category in aliases or category=='/'.join(entry['categories'])) and (not tag or tag in entry['tags']):
+        if all(w in text for w in query.lower().split()) and (category is None or category in entry['categories'] or category in aliases or category=='/'.join(entry['categories'])) and (tag is None or tag in entry['tags']):
             result=dict(entry);result['local_inert_source']='snapshots/'+active['commit']+'/code/'+entry['code_sha256']+'.txt';result['untrusted']=True
             # A snapshot downloads only current sources. Historical relationships
             # remain discoverable metadata, not an assertion that their bytes exist locally.

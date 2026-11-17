@@ -54,18 +54,25 @@ def validate(plan):
         require(isinstance(node.get('depends_on'), list) and all(isinstance(x, str) for x in node['depends_on']), 'invalid dependencies')
         ids[node['id']] = node
     visiting, done = set(), set()
-    def visit(key):
-        require(key in ids, f'unknown dependency {key}')
-        require(key not in visiting, 'dependency cycle')
-        if key in done:
-            return
-        visiting.add(key)
-        for dependency in ids[key]['depends_on']:
-            visit(dependency)
-        visiting.remove(key)
-        done.add(key)
-    for key in ids:
-        visit(key)
+    for identifier in ids:
+        if identifier in done:
+            continue
+        # Keep each node's unfinished dependency iterator on an explicit stack.
+        stack = [(identifier, iter(ids[identifier]['depends_on']))]
+        visiting.add(identifier)
+        while stack:
+            node_id, predecessors = stack[-1]
+            dependency = next(predecessors, None)
+            if dependency is None:
+                stack.pop()
+                visiting.remove(node_id)
+                done.add(node_id)
+                continue
+            require(dependency in ids, f'unknown dependency {dependency}')
+            require(dependency not in visiting, 'dependency cycle')
+            if dependency not in done:
+                visiting.add(dependency)
+                stack.append((dependency, iter(ids[dependency]['depends_on'])))
     active = []
     ready = []
     for node in nodes:
