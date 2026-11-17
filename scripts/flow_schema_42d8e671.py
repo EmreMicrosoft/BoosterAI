@@ -200,11 +200,12 @@ def parse_mermaid(document):
     Return its UTF-8 SHA-256, the exact fenced diagram's UTF-8 SHA-256, sorted
     node/edge inventories, entry/terminal IDs and cyclic strongly connected
     components. Node IDs must be explicitly defined once; decisions require at
-    least two distinctly labeled branches, while actions have at most one
-    unlabeled outgoing edge. Undefined nodes, duplicate definitions/edges/branch
-    labels, unsupported syntax or bounds raise ValueError. This function reads
-    no files, executes nothing and does not infer branch exhaustiveness, loop
-    budgets, semantic atomicity, authorization, or successful test evidence.
+    least two branch labels distinct under canonical, case-insensitive comparison,
+    while actions have at most one unlabeled outgoing edge. Undefined nodes,
+    duplicate definitions, edges or branch labels, and unsupported syntax or
+    bounds raise ValueError. This function reads no files, executes nothing
+    and does not infer branch exhaustiveness, loop budgets, semantic atomicity,
+    authorization, or successful test evidence.
     """
     diagram = _diagram(document)
     lines = diagram.splitlines()
@@ -244,7 +245,12 @@ def parse_mermaid(document):
         else:
             _require(len(claims) >= 2 and all(edge["label"] is not None for edge in claims),
                      "decision requires at least two labeled branches")
-            keys = [unicodedata.normalize("NFC", edge["label"]).casefold() for edge in claims]
+            # Case folding can change the normalization form. Compare normalized
+            # keys while retaining the original labels in the graph.
+            keys = [
+                unicodedata.normalize("NFC", unicodedata.normalize("NFD", edge["label"]).casefold())
+                for edge in claims
+            ]
             _require(len(keys) == len(set(keys)), "duplicate decision branch")
     nodes = [definitions[identifier] for identifier in sorted(definitions)]
     ordered_edges = sorted(edges, key=lambda edge: (edge["from"], edge["to"], edge["label"] or ""))
