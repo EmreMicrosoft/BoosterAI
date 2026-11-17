@@ -288,21 +288,37 @@ If per-step GitHub backup was requested and authorized, record remote/branch/com
 def workspace_init(root, records_existing=None, create_records=False, schema=None):
     """Scaffold owned work; explicit record selection prevents guessing an existing ledger."""
     require(not (records_existing and create_records), 'choose existing or new records, not both')
-    # partials_init checks root/reparse boundaries and never replaces an existing index.
-    report = partials_init(root)
-    root = Path(root).resolve()
-    owned = checked(root, '_boosterAI')
-    owned.mkdir(exist_ok=True)
+    root = checked_root(root)
     record = None
+    create_record = False
     if records_existing:
         record = checked(root, records_existing)
         require(record.is_file(), 'existing project record not found')
     elif create_records:
-        record = checked(root, 'PROJECT_RECORDS.md')
-        if not record.exists():
-            with record.open('x', encoding='utf-8') as stream:
-                stream.write('# Project records\n\n## Goal and acceptance\n\n## Current state and next action\n\n## Backlog\n\n## Decisions and evidence\n\nBoosterAI work and algorithm: `_boosterAI/`.\n')
-        require(record.is_file(), 'project records path is not a file')
+        legacy_record = checked(root, 'PROJECT_RECORDS.md')
+        nested_record = checked(root, '_boosterAI/PROJECT_RECORDS.md')
+        legacy_exists = legacy_record.exists()
+        nested_exists = nested_record.exists()
+        require(not (legacy_exists and nested_exists),
+                'multiple project records exist; select one with --records-existing')
+        if legacy_exists:
+            record = legacy_record
+        else:
+            record = nested_record
+            create_record = not nested_exists
+        if not create_record:
+            require(record.is_file(), 'project records path is not a file')
+    # Select or reject records before creating any part of the scaffold.
+    report = partials_init(root)
+    owned = checked(root, '_boosterAI')
+    owned.mkdir(exist_ok=True)
+    if create_record:
+        # This recheck narrows, but cannot eliminate, races with nonparticipants.
+        require(not checked(root, 'PROJECT_RECORDS.md').exists(),
+                'project records changed; reconcile before creating another record')
+        record = checked(root, '_boosterAI/PROJECT_RECORDS.md')
+        with record.open('x', encoding='utf-8') as stream:
+            stream.write('# Project records\n\n## Goal and acceptance\n\n## Current state and next action\n\n## Backlog\n\n## Decisions and evidence\n\nBoosterAI algorithm: `algorithm.md`.\n')
     report['project_record'] = str(record.relative_to(root)) if record else None
     report['records_status'] = 'selected' if record else 'not_selected_inspect_existing_system'
     algorithm = checked(root, '_boosterAI/algorithm.md')

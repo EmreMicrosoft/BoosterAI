@@ -368,13 +368,15 @@ class CollectorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'reconcile'):b.workspace_init(self.root, schema='existing-schema.md')
     def test_workspace_new_records_no_overwrite(self):
         result=b.workspace_init(self.root,create_records=True)
-        self.assertEqual(result['project_record'],'PROJECT_RECORDS.md')
-        record=self.root/'PROJECT_RECORDS.md';record.write_text('user added history')
+        relative=Path('_boosterAI')/'PROJECT_RECORDS.md'
+        self.assertEqual(result['project_record'],str(relative))
+        self.assertFalse((self.root/'PROJECT_RECORDS.md').exists())
+        record=self.root/relative;record.write_text('user added history')
         algorithm=self.root/'_boosterAI/algorithm.md';algorithm.write_text('owner algorithm')
         b.workspace_init(self.root,create_records=True)
         self.assertEqual(record.read_text(),'user added history')
         self.assertEqual(algorithm.read_text(),'owner algorithm')
-        with self.assertRaises(ValueError):b.workspace_init(self.root,records_existing='PROJECT_RECORDS.md',create_records=True)
+        with self.assertRaises(ValueError):b.workspace_init(self.root,records_existing=str(relative),create_records=True)
 
     def test_workspace_new_cli_scaffolds_only_nested_partials(self):
         args=[sys.executable,'-I','-S','-B',str(ROOT/'scripts/booster.py'),
@@ -384,8 +386,10 @@ class CollectorTests(unittest.TestCase):
         report=json.loads(result.stdout)
         self.assertEqual(report['directory'],'_boosterAI/_partials')
         self.assertEqual(report['index'],'_boosterAI/_partials/README.md')
+        self.assertEqual(report['project_record'],str(Path('_boosterAI')/'PROJECT_RECORDS.md'))
         self.assertTrue(report['created'])
-        self.assertTrue((self.root/'PROJECT_RECORDS.md').is_file())
+        self.assertTrue((self.root/'_boosterAI/PROJECT_RECORDS.md').is_file())
+        self.assertFalse((self.root/'PROJECT_RECORDS.md').exists())
         self.assertTrue((self.root/'_boosterAI/algorithm.md').is_file())
         self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
         self.assertFalse((self.root/'_partials').exists())

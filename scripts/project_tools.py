@@ -391,7 +391,15 @@ def archive_search(repository, query='', category=None, tag=None, include_relate
     results=[];related_by_record={}
     index=safe(base,'solutions/index.json')
     if not index.exists():return {'results':results,'related_files_by_record':related_by_record,'savings_measured':False}
-    data=json.loads(index.read_text(encoding='utf-8'))
+
+    def unique_index_object(pairs):
+        result = {}
+        for name, value in pairs:
+            require(name not in result, 'duplicate archive index field')
+            result[name] = value
+        return result
+
+    data=json.loads(index.read_text(encoding='utf-8'),object_pairs_hook=unique_index_object)
     require(isinstance(data,dict) and isinstance(data.get('entries'),list),'invalid archive index')
     if data.get('format') in ('boosterai-index-v2','boosterai-index-v3'):profile.validate_index(data)
     else:require(data.get('format')=='boosterai-index-v1','unsupported archive index')

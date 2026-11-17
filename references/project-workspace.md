@@ -2,14 +2,18 @@
 
 Create `<project-root>/_boosterAI/` for durable BoosterAI-owned work: the working algorithm, evidence and handoffs. Create or reuse `<project-root>/_boosterAI/_partials/` for functional pieces and their README index. By default scratch, cleanup manifests, quarantine and helper locks live under `_boosterAI/`. An explicit user-selected temporary directory inside the authorized project overrides that default for temporary artifacts. Product integration remains the consuming project's responsibility; this workspace convention never authorizes moving existing product files or accessing another project.
 
-Inspect the existing record system first. Preserve and use its established files and formats in place. If no project record system exists, create one minimal open `PROJECT_RECORDS.md` at project root with goal/acceptance, current state/next, backlog, decisions/evidence and a link to `_boosterAI/`. This root record is an explicit exception to the owned-work directory rule. Do not create parallel ledgers merely because a familiar filename is absent.
+Inspect the existing record system before choosing a record option. Preserve its files and formats in place. New records belong in `_boosterAI/PROJECT_RECORDS.md`. The generated record has sections for goal and acceptance, current state and next action, backlog, and decisions and evidence. It refers to the working `algorithm.md`.
 
-After inspection, use one:
+Use at most one record option.
+
 ```
 python scripts/booster.py workspace-init --root PROJECT --records-existing docs/status.md
 python scripts/booster.py workspace-init --root PROJECT --create-records
 ```
-Without either record option the helper scaffolds owned work but reports records not selected. It does not pretend to detect every possible record format. Agent judgment must finish that selection.
+
+- `--records-existing PATH` selects an existing project-relative record file in place, including one maintained under a different name or format.
+- `--create-records` checks the project-root `PROJECT_RECORDS.md` and `_boosterAI/PROJECT_RECORDS.md`. If neither path exists, it creates the nested record. If just one exists as a file, it reuses it in place. If both paths exist, it stops before creating any part of the scaffold. Choose the intended file with `--records-existing PATH`.
+- With neither option, the helper scaffolds owned work and reports `records_status` as `not_selected_inspect_existing_system`.
 
 The scaffold creates `_boosterAI/algorithm.md`, `_boosterAI/README.md` and `_boosterAI/_partials/README.md` when absent, preserving existing files. Existing nested partials and their README are reused without overwriting them. Report an existing project-root `_partials` as the legacy location and inspect its contents when appropriate; leave that location, its files and history in place. Do not silently move, delete, overwrite or duplicate an implementation. Preserve either existing README unchanged during initialization: its older scaffold guidance may predate the current standard. The initializer's `directory` and `index` report the nested standard, and `legacy_root_location` reports an existing root `_partials`. For compatibility, the old `legacy_location` field still reports whether `_boosterAI/_partials` existed before the call; that path is now the standard, so new callers should use `legacy_root_location` for the root location.
 
