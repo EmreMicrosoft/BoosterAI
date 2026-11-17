@@ -483,7 +483,7 @@ def main():
     try:
         if args.command=='sync':result=sync(args.root,args.force,scratch=args.scratch)
         elif args.command == 'search':
-            if len(args.root) != 1:
+            if len(args.root) != 1 or not args.root[0].strip():
                 parser.exit(2, 'archive search requires exactly one --root\n')
             result = search(args.root[0], args.query or '', args.category, args.tag)
         else:result=rollback(args.root,args.commit,args.scratch)

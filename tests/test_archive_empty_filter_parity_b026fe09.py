@@ -111,14 +111,21 @@ class ArchiveRepeatedFilterParityTest(unittest.TestCase):
                         self.assertEqual(stderr.getvalue(), 'conflicting archive filter values\n')
                         search.assert_not_called()
 
-    def test_repeated_roots_exit_before_resolution(self):
-        roots = ['--root', str(PROJECT), f'--root={PROJECT}']
+    def test_invalid_roots_exit_before_resolution(self):
+        repeated_roots = ['--root', str(PROJECT), f'--root={PROJECT}']
+        cases = (
+            repeated_roots,
+            [*repeated_roots, '--root', '.'],
+            ['--root', ''],
+            ['--root='],
+            ['--root', ' \t '],
+        )
         for module, command, method in self.readers:
             resolver = 'repository_root' if module is project_tools else 'storage'
-            for extra in ([], ['--root', '.']):
-                args = [module.__name__, command, *roots, *extra]
+            for flags in cases:
+                args = [module.__name__, command, *flags]
                 stdout, stderr = StringIO(), StringIO()
-                with self.subTest(reader=module.__name__, roots=2 + len(extra) // 2):
+                with self.subTest(reader=module.__name__, flags=flags):
                     with (
                         patch.object(module, resolver) as resolve,
                         patch.object(module, method, return_value={}) as search,

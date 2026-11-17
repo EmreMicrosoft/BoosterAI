@@ -1173,7 +1173,7 @@ def main():
             approval=json.loads(safe(root,args.approval).read_text(encoding='utf-8')) if args.approval else None
             result=purge_logs(args.root,plan,approval)
         elif args.command == 'search-archive':
-            if len(args.root) != 1:
+            if len(args.root) != 1 or not args.root[0].strip():
                 parser.exit(2, 'archive search requires exactly one --root\n')
             result = archive_search(args.root[0], args.query or '', args.category, args.tag)
         elif args.command=='archive-example':result=archive_example(args.root,args.source,args.review)
