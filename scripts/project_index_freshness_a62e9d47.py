@@ -73,12 +73,14 @@ class _FreshnessArgumentParser(argparse.ArgumentParser):
 def main(argv=None):
     """Print the comparison as JSON; exit 1 if the check could not complete."""
     parser = _FreshnessArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--root', required=True, help='authorized project root')
+    parser.add_argument('--root', action='append', required=True, help='authorized project root')
     parser.add_argument('--path', action='append', required=True,
                         help='exact indexed path authorized for reading (repeat to compare several)')
     args = parser.parse_args(argv)
+    if len(args.root) != 1:
+        parser.error('exactly one project root is required')
     try:
-        result = check_freshness(args.root, *args.path)
+        result = check_freshness(args.root[0], *args.path)
     except FreshnessError as error:
         result = {'status': 'ERROR', 'error': str(error)}
     except PermissionError:

@@ -46,6 +46,17 @@ class FreshnessCliArgumentTest(unittest.TestCase):
         self.assertIn('--root', stdout)
         self.assertIn('--path', stdout)
 
+    def test_repeated_root_is_rejected_before_comparison(self):
+        base = ['--root', '.', '--path', '_partials/README.md',
+                '--path', '_boosterAI/_partials/README.md']
+        for extra in (['--root', '.'], ['--root', 'other-root'], ['--root=other-root']):
+            with self.subTest(extra=extra):
+                code, stdout, stderr = self.invoke_parser(base + extra)
+                self.assertEqual(code, 2)
+                self.assertEqual(stdout, '')
+                self.assertTrue(stderr.rstrip().endswith('invalid arguments. Use --help for usage.'))
+                self.assertNotIn('other-root', stderr)
+
 
 if __name__ == '__main__':
     unittest.main()
