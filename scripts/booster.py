@@ -294,6 +294,7 @@ If per-step GitHub backup was requested and authorized, record remote/branch/com
 
 def workspace_init(root, records_existing=None, create_records=False, schema=None):
     """Scaffold owned work; explicit record selection prevents guessing an existing ledger."""
+    require(records_existing != '', 'empty project record selector')
     require(not (records_existing and create_records), 'choose existing or new records, not both')
     root = checked_root(root)
     record = None
@@ -501,7 +502,7 @@ def main():
     sub.add_parser('schema-status').add_argument('--root', required=True)
     workspace = sub.add_parser('workspace-init')
     workspace.add_argument('--root', required=True)
-    workspace.add_argument('--records-existing')
+    workspace.add_argument('--records-existing', action='append')
     workspace.add_argument('--create-records', action='store_true')
     workspace.add_argument('--schema')
     sub.add_parser('self-check').add_argument('--root', default=str(Path(__file__).resolve().parents[1]))
@@ -517,7 +518,11 @@ def main():
         elif args.command == 'schema-status':
             result = schema_status(args.root)
         elif args.command == 'workspace-init':
-            result = workspace_init(args.root, args.records_existing, args.create_records, args.schema)
+            selectors = args.records_existing
+            if selectors and len(selectors) > 1:
+                parser.error('--records-existing may only be supplied once')
+            result = workspace_init(args.root, selectors[0] if selectors else None,
+                                    args.create_records, args.schema)
         elif args.command == 'partials-init':
             result = partials_init(args.root)
         elif args.command == 'self-check':

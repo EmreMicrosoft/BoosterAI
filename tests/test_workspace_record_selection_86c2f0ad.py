@@ -1,8 +1,9 @@
 """Exercise workspace record selection with in-memory filesystem boundaries."""
 
 import importlib.util
+import json
 import unittest
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path, PurePath
 from unittest.mock import patch
@@ -111,6 +112,63 @@ class WorkspaceRecordSelectionTests(unittest.TestCase):
         for selected in records:
             with self.subTest(selected=selected):
                 self.assert_reuse(records, selected, records_existing=selected.as_posix())
+
+    def test_duplicate_existing_selectors_fail_before_workspace_init(self):
+        first = ROOT_RECORD.as_posix()
+        for second in (first, NESTED_RECORD.as_posix()):
+            args = [
+                str(source), "workspace-init", "--root", ".",
+                "--records-existing", first, f"--records-existing={second}",
+            ]
+            with (
+                self.subTest(second=second),
+                patch.object(booster.sys, "argv", args),
+                patch.object(booster, "workspace_init") as initialize,
+                redirect_stdout(StringIO()) as stdout,
+                redirect_stderr(StringIO()) as stderr,
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    booster.main()
+
+                self.assertEqual(error.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                diagnostic = stderr.getvalue()
+                self.assertIn("--records-existing may only be supplied once", diagnostic)
+                self.assertNotIn(first, diagnostic)
+                self.assertNotIn(second, diagnostic)
+                initialize.assert_not_called()
+
+    def test_empty_existing_selector_cli_fails_before_resolving_root(self):
+        args = [str(source), "workspace-init", "--root", ".", "--records-existing="]
+        with (
+            patch.object(booster.sys, "argv", args),
+            patch.object(booster, "checked_root") as check_root,
+            redirect_stdout(StringIO()) as stdout,
+            redirect_stderr(StringIO()) as stderr,
+        ):
+            self.assertEqual(booster.main(), 1)
+
+        self.assertEqual(json.loads(stdout.getvalue()), {"error": "empty project record selector"})
+        self.assertEqual(stderr.getvalue(), "")
+        check_root.assert_not_called()
+
+    def test_omitted_and_empty_existing_selectors_are_distinct(self):
+        records = {ROOT_RECORD: b"root record"}
+        project = MemoryProject(records)
+        with project.filesystem_boundaries():
+            report = booster.workspace_init(project.root, records_existing=None)
+
+        self.assertIsNone(report["project_record"])
+        self.assertEqual(report["records_status"], "not_selected_inspect_existing_system")
+        self.assertEqual(project.records(), records)
+        self.assertEqual(project.record_opens(), [])
+
+        with patch.object(booster, "checked_root") as check_root:
+            for create_records in (False, True):
+                with self.subTest(create_records=create_records):
+                    with self.assertRaisesRegex(ValueError, "^empty project record selector$"):
+                        booster.workspace_init(".", records_existing="", create_records=create_records)
+        check_root.assert_not_called()
 
     def assert_reuse(self, records, selected, **options):
         project = MemoryProject(records)

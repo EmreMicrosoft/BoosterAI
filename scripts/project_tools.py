@@ -1152,7 +1152,7 @@ def main():
     check=sub.add_parser('check-helper');check.add_argument('--root',required=True);check.add_argument('--name',required=True);check.add_argument('--version',required=True)
     archive=sub.add_parser('archive-example');archive.add_argument('--root',required=True);archive.add_argument('--source',required=True);archive.add_argument('--review',required=True)
     search = sub.add_parser('search-archive')
-    search.add_argument('--root', required=True)
+    search.add_argument('--root', required=True, action='append')
     profile.add_archive_search_filters(search)
     link=sub.add_parser('link-archive-files');link.add_argument('--root',required=True);link.add_argument('--file',required=True);link.add_argument('--related-file',required=True);link.add_argument('--strength',required=True,type=float);link.add_argument('--derived-from',action='store_true')
     sub.add_parser('rebuild-archive-index').add_argument('--root',required=True)
@@ -1169,7 +1169,9 @@ def main():
             approval=json.loads(safe(root,args.approval).read_text(encoding='utf-8')) if args.approval else None
             result=purge_logs(args.root,plan,approval)
         elif args.command == 'search-archive':
-            result = archive_search(args.root, args.query or '', args.category, args.tag)
+            if len(args.root) != 1:
+                parser.exit(2, 'archive search requires exactly one --root\n')
+            result = archive_search(args.root[0], args.query or '', args.category, args.tag)
         elif args.command=='archive-example':result=archive_example(args.root,args.source,args.review)
         elif args.command=='link-archive-files':result=link_archive_files(args.root,args.file,args.related_file,args.strength,args.derived_from)
         elif args.command=='rebuild-archive-index':result=refresh_archive_index(args.root)

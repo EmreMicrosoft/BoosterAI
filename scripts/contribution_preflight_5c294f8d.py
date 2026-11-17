@@ -183,17 +183,21 @@ def main(argv=None):
     """Read optional local review metadata and emit only non-sensitive gate names.
 
     Inputless use is supported and reports missing prerequisites. Malformed input
-    or unsafe paths fail closed; JSON diagnostics never include supplied content.
+    or unsafe paths fail closed. Each path selector may be supplied only once.
     """
     parser = PrivateArgumentParser(description=__doc__)
-    parser.add_argument('--root', default=str(Path(__file__).absolute().parent.parent))
-    parser.add_argument('--review', help='project-relative JSON file containing private input references')
+    parser.add_argument('--root', action='append')
+    parser.add_argument('--review', action='append',
+                        help='project-relative JSON file containing private input references')
     args = parser.parse_args(argv)
+    if len(args.root or ()) > 1 or len(args.review or ()) > 1:
+        parser.error('path selectors must be unique')
     try:
-        root = project_root(args.root)
+        requested = args.root[0] if args.root else str(Path(__file__).absolute().parent.parent)
+        root = project_root(requested)
         review = {}
-        if args.review is not None:
-            path = ordinary_file(root, args.review)
+        if args.review:
+            path = ordinary_file(root, args.review[0])
             limit = 65536
             if path is None or path.stat().st_size > limit:
                 raise ValueError('review_unavailable_or_too_large')

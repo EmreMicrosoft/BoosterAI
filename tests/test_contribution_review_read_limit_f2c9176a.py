@@ -145,6 +145,23 @@ class ContributionReviewReadLimitTest(unittest.TestCase):
         self.assertEqual(result['invalid'], [])
         self.assertEqual(result['pr_status'], 'NOT_RUN')
 
+    def test_repeated_path_selectors_stop_before_resolving_paths(self):
+        """Keep ambiguous roots and review paths out of the preflight reader."""
+        for flag in ('--root', '--review'):
+            output, errors = StringIO(), StringIO()
+            with (
+                self.subTest(flag=flag),
+                patch.object(preflight, 'project_root') as root,
+                redirect_stdout(output),
+                redirect_stderr(errors),
+                self.assertRaises(SystemExit) as exit_status,
+            ):
+                preflight.main([flag, 'first-selector', flag + '=second-selector'])
+            root.assert_not_called()
+            self.assertEqual(exit_status.exception.code, 2)
+            self.assertEqual(output.getvalue(), '')
+            self.assertEqual(errors.getvalue(), 'invalid arguments; no contribution was evaluated\n')
+
 
 if __name__ == '__main__':
     unittest.main()

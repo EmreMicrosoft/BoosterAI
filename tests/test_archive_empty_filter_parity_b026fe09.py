@@ -111,6 +111,29 @@ class ArchiveRepeatedFilterParityTest(unittest.TestCase):
                         self.assertEqual(stderr.getvalue(), 'conflicting archive filter values\n')
                         search.assert_not_called()
 
+    def test_repeated_roots_exit_before_resolution(self):
+        roots = ['--root', str(PROJECT), f'--root={PROJECT}']
+        for module, command, method in self.readers:
+            resolver = 'repository_root' if module is project_tools else 'storage'
+            for extra in ([], ['--root', '.']):
+                args = [module.__name__, command, *roots, *extra]
+                stdout, stderr = StringIO(), StringIO()
+                with self.subTest(reader=module.__name__, roots=2 + len(extra) // 2):
+                    with (
+                        patch.object(module, resolver) as resolve,
+                        patch.object(module, method, return_value={}) as search,
+                        patch.object(sys, 'argv', args),
+                        redirect_stdout(stdout),
+                        redirect_stderr(stderr),
+                        self.assertRaises(SystemExit) as status,
+                    ):
+                        module.main()
+                    self.assertEqual(status.exception.code, 2)
+                    self.assertEqual(stdout.getvalue(), '')
+                    self.assertEqual(stderr.getvalue(), 'archive search requires exactly one --root\n')
+                    resolve.assert_not_called()
+                    search.assert_not_called()
+
     def test_omitted_and_repeated_identical_values_reach_search(self):
         filters = ['--query=one', '--category=two', '--tag=three']
         empty = ['--query=', '--category=', '--tag=']
