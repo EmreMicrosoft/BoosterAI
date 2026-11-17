@@ -1,6 +1,8 @@
 """Project-local index behavior through real CLI and guarded failure paths."""
 import importlib.util
 import hashlib
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -271,6 +273,51 @@ class ProjectIndexTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'cannot index itself'):
                 p.refresh_project_index(self.project,['_boosterAI/records/other.md'])
         self.assertEqual(index.read_bytes(),before)
+
+
+class ProjectIndexSearchRootTests(unittest.TestCase):
+    def test_rejects_empty_blank_and_repeated_roots_before_search(self):
+        cases = (
+            ('--root', ''),
+            ('--root=',),
+            ('--root', ' \t '),
+            ('--root', 'first', '--root', 'second'),
+            ('--root', 'first', '--root=first'),
+        )
+        for options in cases:
+            argv = ['project_tools.py', 'search-project-index', *options]
+            stdout, stderr = StringIO(), StringIO()
+            with self.subTest(options=options):
+                with (
+                    patch.object(sys, 'argv', argv),
+                    patch.object(p, 'search_project_index', return_value={}) as search,
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                    self.assertRaises(SystemExit) as status,
+                ):
+                    sys.exit(p.main())
+                search.assert_not_called()
+                self.assertEqual(status.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), '')
+                self.assertEqual(
+                    stderr.getvalue(), 'project index search requires exactly one nonblank --root\n'
+                )
+
+    def test_dispatches_one_root_with_query_and_kind(self):
+        argv = ['project_tools.py', 'search-project-index', '--root', 'checkout path',
+                '--query', 'example name', '--kind', 'partial']
+        result = {'entries': [], 'source_freshness_checked': False}
+        stdout, stderr = StringIO(), StringIO()
+        with (
+            patch.object(sys, 'argv', argv),
+            patch.object(p, 'search_project_index', return_value=result) as search,
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            self.assertEqual(p.main(), 0)
+        search.assert_called_once_with('checkout path', 'example name', 'partial')
+        self.assertEqual(json.loads(stdout.getvalue()), result)
+        self.assertEqual(stderr.getvalue(), '')
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

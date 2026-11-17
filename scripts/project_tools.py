@@ -1158,7 +1158,10 @@ def main():
     link=sub.add_parser('link-archive-files');link.add_argument('--root',required=True);link.add_argument('--file',required=True);link.add_argument('--related-file',required=True);link.add_argument('--strength',required=True,type=float);link.add_argument('--derived-from',action='store_true')
     sub.add_parser('rebuild-archive-index').add_argument('--root',required=True)
     local_refresh=sub.add_parser('refresh-project-index');local_refresh.add_argument('--root',required=True);local_refresh.add_argument('--experience',action='append',default=[])
-    local_search=sub.add_parser('search-project-index');local_search.add_argument('--root',required=True);local_search.add_argument('--query',default='');local_search.add_argument('--kind',choices=PROJECT_INDEX_KINDS)
+    local_search = sub.add_parser('search-project-index')
+    local_search.add_argument('--root', required=True, action='append')
+    local_search.add_argument('--query', default='')
+    local_search.add_argument('--kind', choices=PROJECT_INDEX_KINDS)
     sub.add_parser('plan-log-deletion').add_argument('--root',required=True)
     purge=sub.add_parser('purge-logs');purge.add_argument('--root',required=True);purge.add_argument('--plan',required=True);purge.add_argument('--approval')
     args=parser.parse_args()
@@ -1177,7 +1180,10 @@ def main():
         elif args.command=='link-archive-files':result=link_archive_files(args.root,args.file,args.related_file,args.strength,args.derived_from)
         elif args.command=='rebuild-archive-index':result=refresh_archive_index(args.root)
         elif args.command=='refresh-project-index':result=refresh_project_index(args.root,args.experience)
-        elif args.command=='search-project-index':result=search_project_index(args.root,args.query,args.kind)
+        elif args.command == 'search-project-index':
+            if len(args.root) != 1 or not args.root[0].strip():
+                parser.exit(2, 'project index search requires exactly one nonblank --root\n')
+            result = search_project_index(args.root[0], args.query, args.kind)
         elif args.command=='log':result=log_event(args.root,args.summary,args.status,args.evidence)
         elif args.command=='register-helper':result=register_helper(args.root,args.name,args.version,args.source,args.evidence,args.target,args.source_scope,args.function_docs_reviewed)
         else:result=helper_check(args.root,args.name,args.version)
