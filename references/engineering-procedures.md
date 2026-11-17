@@ -3,7 +3,13 @@
 These procedures are part of BoosterAI, not calls to another skill or service. Read only the relevant section. They are adaptable reasoning instructions, not an autonomous runtime.
 
 ## Search before change
-Inspect the current entry point, owner, nearby code and existing tests. Trace one actual input to its observed effect before adding an abstraction. Search existing source and records with available host tools. Apply the research sequence in the [canonical skill](../SKILL.md) for each distinct question. Keep local and authorized archive examples in their established locations, use separate research assignments for the available channels, and check useful advice against primary sources and the real target. Report unavailable sources and continue independent permitted work. If the defect cannot be reproduced, preserve the observation and record that the cause remains unknown.
+Inspect the current entry point, owner, nearby code and existing tests. Trace one actual input to its observed effect before adding an abstraction. Search existing source and records with available host tools.
+
+For each distinct coding question, first look for relevant standalone examples in the project's authorized partials locations. Then use a subagent to check for corresponding examples in the authorized BoosterAI GitHub repository's partials locations. Read examples as research material under their existing ownership and license.
+
+When available and authorized, assign separate subagents in parallel to research current developer experience on Stack Overflow, within the authorized GitHub scope, and on developer forums. Use generic technical terms and keep private project names, paths, code, credentials and user data out of queries. Check dates and relevance, corroborate material claims with primary sources and record how the finding affected the actual work. Report unavailable sources or delegation and continue independent authorized work. The core workflow remains usable offline.
+
+Keep local and authorized archive examples in their established locations. Check useful advice on the real target. If the defect cannot be reproduced, preserve the observation and record that the cause remains unknown.
 
 ## Evidence-led debugging
 1. Capture exact failure, environment, code revision and what already happened. Hide secrets from logs.
@@ -14,6 +20,12 @@ Inspect the current entry point, owner, nearby code and existing tests. Trace on
 
 ## Design and implementation
 Choose the smallest coherent behavior that can be invoked and observed. Keep external effects at explicit boundaries; validate inputs; use cancellation, bounded retries and recoverable state where the observed failure needs them. Do not add universal recovery frameworks or speculative features. Language-specific choices follow the existing codebase, not a mandatory external patterns skill.
+
+Use the explicitly requested language first, the existing module language next, and Python as the fallback.
+
+For new Python work, select Python 3.12 or newer. For new .NET work, select .NET SDK 10 or newer. An explicit version request takes precedence. Check the existing project's constraints before changing an established runtime.
+
+Use `python -I -S -B scripts/booster.py runtime-check --language python` to check the interpreter actually executing the helper. For .NET, supply the SDK version observed through the authorized host with `runtime-check --language dotnet --observed-version VERSION`. The helper labels the reported SDK version as an unverified observation. Use `--requested-version VERSION` only when the user explicitly requested that version. A major.minor request matches its series and a full version matches exactly.
 
 ## Verification and review
 Run applicable syntax/build checks and focused tests, then exercise the real entry point in the actual target. Separate local unit checks from acceptance. Compare actual observations with the predeclared contract; bind evidence to revision and target. Review the diff for unexpected files, lost work, secrets, unnecessary complexity, unbounded loops and inaccurate completion claims. Fix the current slice before advancing. Existing project build tools are target prerequisites, not bundled BoosterAI dependencies.

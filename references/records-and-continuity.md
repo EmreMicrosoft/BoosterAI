@@ -1,5 +1,7 @@
 # Records, continuity and unavailable skills
 
+Load this workflow when retaining an authorized source message, preparing a handoff, or reconciling interrupted work. Use supported host readback to match an incoming item to its source and record its position in the recipient task. Record any active or terminal state at inspection separately from evidence of receipt, observed action and completed response.
+
 Keep three scopes separate:
 - Private coordinator notes: commitments and personal follow-up only. Read only with the authorized owner; never copy their contents into public skills or project prompts.
 - Central shared rules: reusable project-independent conventions only, not project task histories.

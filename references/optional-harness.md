@@ -8,9 +8,13 @@ shell command, sandbox tests, or grant permissions. Project test code is trusted
 and can have arbitrary side effects; inspect the exact test and authorize it in
 the host before each execution. Never use this tool to repeat a denied action.
 
+Load this reference when preparing an authorized run, interpreting run evidence,
+or reviewing STOP and recovery. The host coordinates work with disjoint file
+ownership. The harness keeps one serial executor for the shared project state.
+
 ## Combined startup check
 
-After selecting a complete source graph, run:
+Use preflight before an authorized new run with a complete source graph.
 
 ```text
 python -I -S -B scripts/harness_5b7e9c31.py --root PROJECT --source PLAN.json preflight
@@ -55,17 +59,23 @@ python -I -S -B scripts/harness_5b7e9c31.py --root . --source _boosterAI/algorit
 Use the actual `run_id` from `start`; the exact case is repeated explicitly in
 `verify`. It must be `Class.test_method` in a project-relative `.py` file. Only
 one selected unittest case is supported in version one; its assertions may
-exercise multiple real product behaviors. The test's exit status alone is not
-enough: the runner must report exactly one executed case, no failures, errors,
-skips, expected failures or unexpected successes, and unchanged declared files
-and bundled verifier code before and after execution. The host must determine
-whether those assertions actually establish the requested product acceptance.
+exercise multiple real product behaviors. Success requires exit zero and a
+successful report for the exact case with one executed test and no failures,
+errors, skips, expected failures or unexpected successes. Declared files and
+tool and policy fingerprints must remain unchanged. The selected card must
+still match and its prerequisites must have fresh acceptance. The host
+determines whether those assertions establish the requested product acceptance.
 The runner's structured report is not an authenticated attestation and trusted
 test code can falsify it. Hashes detect changes to declared bytes only; they do
 not discover undeclared code, environmental changes, remote effects or dishonesty.
 The recorded revision is a working-file and verifier fingerprint, not a Git
 commit identifier. Unrelated card changes do not stale an unchanged card;
-changed prerequisites stale their dependents. `status` checks freshness again.
+changed prerequisites stale their dependents.
+
+`status` acquires the cooperative lock and may create workspace/claim guards.
+It may write `_boosterAI/harness-state.json` when it marks evidence `STALE` or
+converts a persisted `VERIFYING` or `STOP_REQUESTED` record to `AMBIGUOUS`.
+Use existing records or an authorized read-only snapshot for no-write inspection.
 
 The host must set process-local `TEMP`, `TMP` and `TMPDIR` to its authorized
 project-contained scratch; `BOOSTERAI_SCRATCH` selects an existing safe scratch

@@ -1,5 +1,7 @@
 # Owned scratch cleanup
 
+Load this workflow when choosing project scratch, reconciling an interrupted operation, or reviewing an exact owned disposable set. Use the [daily log retention workflow](logs-and-helpers.md#permanent-deletion-with-action-time-approval) for daily log eligibility and fresh approval of an exact permanent-deletion batch.
+
 For a project using BoosterAI, the default cleanup root is PROJECT/_boosterAI, not the project root. An explicit user-selected scratch directory inside the project takes precedence. Keep manifests, .booster-tmp, quarantine and collector locks inside that selected directory; see project-workspace.md.
 
 Prevent accumulation before collection: reuse a run-specific directory; bound output sizes/counts; avoid duplicating unchanged reports; retain one compact current index with links to necessary evidence. Review scratch at meaningful completion/checkpoint boundaries, not via a new recurring daemon. Preserve unresolved failure evidence and active artifacts.

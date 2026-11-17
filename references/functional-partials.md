@@ -1,5 +1,7 @@
 # Functional partials workflow
 
+Load this workflow when consulting a standalone example, authoring or maintaining an example within its assigned file scope, or reviewing an example's acceptance or index entry. For independent acceptance, give the reviewer the exact source path, revision, authorized target, intended entry point and expected result. Keep observed results in the existing project-local evidence and share them only with the authorized audience.
+
 First apply the project-workspace reference, including record-system selection. On a coding request, create or reuse `<project-root>/_boosterAI/_partials/README.md` and its containing directory. `python scripts/booster.py partials-init --root PROJECT` creates the scaffold; it preserves an existing README unchanged. Inspect existing entries without overwriting history or another active owner. If project-root `_partials/` exists, report and inspect it as a compatibility location, preserving its files and history and avoiding duplicate implementations; do not move it or silently replace either existing index. Initialization is not algorithm generation, implementation or verification.
 
 ## Requirement 38: read-only learning references

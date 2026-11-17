@@ -1,5 +1,7 @@
 # Daily logs and reusable project helpers
 
+Load this workflow when recording a general operational checkpoint, reviewing retention for owned daily logs, or registering or reusing a tested versioned helper. A UTC filename-date check screens for candidates. Verify live retention using genuine eligible logs through the authorized planner and its writer lock.
+
 ## Daily work log
 At meaningful skill entry/checkpoints and after a verified result, append only a short, generic operational status with the bundled helper:
 ```

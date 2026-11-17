@@ -85,6 +85,8 @@ Apply [in-flight message routing](references/in-flight-messages.md) through the 
 
 Use [host integration and evidence](references/host-adapter.md) when selecting a supported host interface or checking delivery, hook and run evidence.
 
+Use [independent acceptance](references/independent-acceptance.md) at the close of each work turn and after a review-driven repair. Give a fresh reviewer only the acceptance scope and exact target.
+
 ## Keep attention on delivery
 
 At each natural checkpoint ask: What actual product behavior improved? What exact obstacle remains? What single action reduces it next? If two consecutive checkpoints only repeat the same status or preparation, change the approach: inspect the blocker, shrink the slice, remove unnecessary coordination, or report the exact external action required. Do not invent speculative infrastructure or parallel jobs. Preserve active owners, user input and unrelated work.

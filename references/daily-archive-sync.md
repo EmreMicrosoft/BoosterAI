@@ -3,12 +3,14 @@
 The upstream is pinned to `https://github.com/EmreMicrosoft/BoosterAI`, branch `main`. The bundled updater first resolves main to a commit, then reads only that immutable commit's `solutions/index.json` and permitted source paths. It does not fetch arbitrary URLs, git hooks, credentials or whole repositories.
 
 ## Invoke and search
-On the first available BoosterAI invocation each UTC day, run:
+Load this workflow for the first available BoosterAI invocation each UTC day or when searching an existing snapshot. Run the daily `sync` on the first available invocation with authority for the upstream read, local staging and any pointer activation. Respect existing stage and activation refusals. Use `search` for a read-only lookup of the existing active snapshot.
 ```
 python scripts/archive_sync.py sync --root BOOSTERAI_CHECKOUT
 python scripts/archive_sync.py search --root BOOSTERAI_CHECKOUT --query "normalization" --category text --tag unicode
 ```
-Use `--force` only for an explicit recheck or after a known upstream fix. After a successful check, further same-day invocations return ALREADY_CHECKED_TODAY without another remote request. Offline/missing-index failures are explicit; they do not count as successful checks. No daemon, timer or guaranteed wakeup is installed. A day with no host invocation has no automatic sync. An existing authorized scheduler may invoke this command, but never claim one exists without verification or create a duplicate.
+Use `--force` only for an explicit recheck or after a known upstream fix. After a successful check, further same-day invocations return ALREADY_CHECKED_TODAY without another remote request. Offline/missing-index failures are explicit; they do not count as successful checks. No daemon, timer or guaranteed wakeup is installed. A day with no host invocation has no automatic sync. A verified existing scheduler may offer a due invocation through the host. Check current action authority and ownership before dispatch and avoid duplicate schedules.
+
+For a verified project slice, follow the [optional per-step backup workflow](functional-partials.md#optional-per-step-backup) only with the user's explicit authorization for the backup action, destination and scope.
 
 If the project owner selects a contained scratch directory, select it on the first `sync` or `rollback`, for example `--scratch _temp-files` in this checkout. It must already exist, remain inside the project without links/reparse escapes and share the snapshot filesystem. Later invocations without `--scratch` reuse the verified guard's recorded location; a different explicit selection is rejected. Without a guard or explicit selection, the default is `_boosterAI/.booster-tmp`. Each invocation uses its own scratch directory; the project-wide writer lock is also inside the configured scratch directory. Snapshot and active/previous data retain their existing persistent location.
 
