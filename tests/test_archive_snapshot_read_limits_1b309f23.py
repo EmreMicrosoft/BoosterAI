@@ -66,12 +66,8 @@ class ArchiveSnapshotReadLimitsTest(unittest.TestCase):
             'commit': COMMIT,
             'repository': archive_sync.REPOSITORY,
             'index_sha256': sha256(files['index.json']).hexdigest(),
-        })
-
-        def read_metadata(path, *, encoding):
-            self.assertEqual(path, SNAPSHOT / 'snapshot.json')
-            self.assertEqual(encoding, 'utf-8')
-            return metadata
+        }).encode('utf-8')
+        files = {**files, 'snapshot.json': metadata}
 
         def open_binary(path, mode='r', **kwargs):
             self.assertEqual(mode, 'rb')
@@ -80,10 +76,11 @@ class ArchiveSnapshotReadLimitsTest(unittest.TestCase):
 
         with (
             patch.multiple(archive_sync, MAX_INDEX=index_limit, MAX_CODE=code_limit, MAX_TOTAL=total_limit),
-            patch.object(Path, 'read_text', autospec=True, side_effect=read_metadata),
             patch.object(Path, 'open', autospec=True, side_effect=open_binary),
         ):
             yield reads
+        self.assertEqual(reads[:1], [('snapshot.json', archive_sync.MAX_METADATA + 1, len(metadata))])
+        del reads[:1]
 
     def test_index_at_limit_is_accepted(self):
         manifest, files = snapshot_inputs()

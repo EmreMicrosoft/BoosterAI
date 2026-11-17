@@ -20,6 +20,7 @@ REPOSITORY='https://github.com/EmreMicrosoft/BoosterAI'
 COMMIT_URL='https://api.github.com/repos/EmreMicrosoft/BoosterAI/commits/main'
 RAW='https://raw.githubusercontent.com/EmreMicrosoft/BoosterAI/'
 MAX_INDEX=profile.MAX_INDEX_BYTES
+MAX_METADATA=MAX_INDEX
 MAX_CODE=profile.MAX_CODE_BYTES
 MAX_TOTAL=profile.MAX_TOTAL_BYTES
 
@@ -115,13 +116,16 @@ def _read_snapshot_bytes(path, limit, remaining, size_error):
     return data
 
 
+def _read_metadata_json(path, size_error):
+    """Bound metadata before strict UTF-8 decoding and JSON parsing."""
+    raw = _read_snapshot_bytes(path, MAX_METADATA, MAX_METADATA, size_error)
+    return json.loads(raw.decode('utf-8'), object_pairs_hook=unique_manifest_object)
+
+
 def verify_snapshot(work,commit):
     require(re.fullmatch(r'[0-9a-f]{40}',commit) is not None,'invalid snapshot commit')
     directory=safe(work,'snapshots/'+commit)
-    meta = json.loads(
-        safe(directory, 'snapshot.json').read_text(encoding='utf-8'),
-        object_pairs_hook=unique_manifest_object,
-    )
+    meta = _read_metadata_json(safe(directory, 'snapshot.json'), 'snapshot metadata too large')
     require(isinstance(meta,dict),'snapshot metadata must be an object')
     require(meta.get('commit')==commit and meta.get('repository')==REPOSITORY,'snapshot origin mismatch')
     raw = _read_snapshot_bytes(safe(directory, 'index.json'), MAX_INDEX, MAX_TOTAL, 'index too large')
@@ -416,10 +420,7 @@ def sync(repository,force=False,fetch=remote_get,now=None,scratch=None):
 def search(repository,query='',category=None,tag=None):
     """Read and filter an existing snapshot without creating archive storage."""
     work = storage(repository, create=False)
-    active = json.loads(
-        safe(work, 'active.json').read_text(encoding='utf-8'),
-        object_pairs_hook=unique_manifest_object,
-    )
+    active = _read_metadata_json(safe(work, 'active.json'), 'active pointer too large')
     require(isinstance(active,dict),'active pointer must be an object')
     data=verify_snapshot(work,active['commit']);results=[];related_by_record={}
     for entry in data['entries']:
