@@ -169,6 +169,16 @@ def unique_review_object(pairs):
     return result
 
 
+def reject_review_constant(_value):
+    """Reject non-JSON numeric literals before evaluating any review metadata.
+
+    The decoder calls this for bare NaN, Infinity and -Infinity anywhere in the
+    input. Quoted strings and standard numeric syntax still use normal decoding.
+    The exception carries only a fixed diagnostic.
+    """
+    raise ValueError('invalid_review_number')
+
+
 def main(argv=None):
     """Read optional local review metadata and emit only non-sensitive gate names.
 
@@ -192,7 +202,8 @@ def main(argv=None):
             if len(raw) > limit:
                 raise ValueError('review_unavailable_or_too_large')
             review = json.loads(raw.decode('utf-8-sig'),
-                                object_pairs_hook=unique_review_object)
+                                object_pairs_hook=unique_review_object,
+                                parse_constant=reject_review_constant)
         result = evaluate(root, review)
         print(json.dumps(result, indent=2))
         return 1 if result['invalid'] or result['access_denied'] else 0

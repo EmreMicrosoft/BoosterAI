@@ -1,4 +1,4 @@
-"""Fixture-free tests of the contribution preflight review byte limit."""
+"""Fixture-free tests of contribution review read bounds and JSON decoding."""
 
 from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from io import BytesIO, StringIO
@@ -121,6 +121,29 @@ class ContributionReviewReadLimitTest(unittest.TestCase):
                 path.open.return_value = nullcontext(buffer)
                 self.assertEqual(self.run_review(path), (1, INVALID))
                 path.open.assert_called_once_with('rb')
+
+    def test_rejects_non_json_numbers_before_review_evaluation(self):
+        for token in (b'NaN', b'Infinity', b'-Infinity'):
+            payload = b'{"notes":[{"measurement":' + token + b'}]}'
+            with self.subTest(token=token), BytesIO(payload) as buffer:
+                path = Mock(spec_set=Path)
+                path.stat.return_value = SimpleNamespace(st_size=len(payload))
+                path.open.return_value = nullcontext(buffer)
+                with patch.object(preflight, 'evaluate') as evaluate:
+                    self.assertEqual(self.run_review(path), (1, INVALID))
+                evaluate.assert_not_called()
+
+    def test_accepts_quoted_literals_and_standard_numbers(self):
+        payload = b'{"notes":["NaN","Infinity","-Infinity",-12.5,4e2]}'
+        with BytesIO(payload) as buffer:
+            path = Mock(spec_set=Path)
+            path.stat.return_value = SimpleNamespace(st_size=len(payload))
+            path.open.return_value = nullcontext(buffer)
+            status, result = self.run_review(path)
+        self.assertEqual(status, 0)
+        self.assertEqual(result['missing'], list(preflight.REQUIRED))
+        self.assertEqual(result['invalid'], [])
+        self.assertEqual(result['pr_status'], 'NOT_RUN')
 
 
 if __name__ == '__main__':
