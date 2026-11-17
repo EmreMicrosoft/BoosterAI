@@ -19,17 +19,33 @@ Code examples in project-root `_partials/` and `_boosterAI/_partials/` are stand
 
 ## Project-local partial and experience index
 
-When an owner requests a separate searchable project index, run:
+Use `search-project-index` to find entries in the stored project index. It reads the snapshot and reports `source_freshness_checked: false`.
+
+```text
+python scripts/project_tools.py search-project-index --root PROJECT --query legacy --kind partial
+```
+
+To check freshness, select the exact paths of indexed files you are authorized to read. The read-only freshness command compares their current bytes with the recorded size and SHA-256. Run these Windows examples from the BoosterAI checkout.
+
+```powershell
+py -3.12 -I -S -B scripts/project_index_freshness_a62e9d47.py --root . --path _boosterAI/_partials/README.md
+py -3.12 -I -S -B scripts/project_index_freshness_a62e9d47.py --root . --path _partials/README.md --path _boosterAI/_partials/README.md
+```
+
+`CURRENT` means both the size and SHA-256 match. `STALE` means at least one differs. One `--path` returns the entry itself. Repeated `--path` options return an `entries` array ordered by recorded path. The overall result is `STALE` if any selected entry is stale. Both `CURRENT` and `STALE` are successful comparisons and exit with code `0`.
+
+Duplicate or unindexed paths are rejected before reading any selected file. A failed read or an observed index change also ends the check with an `ERROR` response and exit code `1`, without partial results.
+
+Use `refresh-project-index` when you need to populate the index or update its stored records.
 
 ```
 python scripts/project_tools.py refresh-project-index --root PROJECT
 python scripts/project_tools.py refresh-project-index --root PROJECT --experience _boosterAI/records/observation.md
-python scripts/project_tools.py search-project-index --root PROJECT --query legacy --kind partial
 ```
 
-The first command discovers regular files in standard `_boosterAI/_partials/` and legacy project-root `_partials/`, local `_boosterAI/experiences/` files, and `metadata.json` files in `_boosterAI/helpers/`. An optional repeatable `--experience` adds specific existing project-relative files under `_boosterAI/`; a previously indexed experience remains included on later refreshes. It writes a separate `_boosterAI/project-index.json`, never either human-maintained partials README, existing project records or the shared `solutions/index.json`. Each sorted entry contains only its relative path, kind, size and SHA-256, not file contents or free-form summaries. Both locations retain full relative paths, including when filenames coincide. Paths and hashes can themselves be sensitive; keep this index local unless independently reviewed and authorized for sharing. No indexed code is executed, and indexing does not authenticate experience or evidence.
+`refresh-project-index` discovers regular files in standard `_boosterAI/_partials/` and legacy project-root `_partials/`, local `_boosterAI/experiences/` files, and `metadata.json` files in `_boosterAI/helpers/`. An optional repeatable `--experience` adds specific existing project-relative files under `_boosterAI/`; a previously indexed experience remains included on later refreshes. It writes a separate `_boosterAI/project-index.json`, never either human-maintained partials README, existing project records or the shared `solutions/index.json`. Each sorted entry contains only its relative path, kind, size and SHA-256, not file contents or free-form summaries. Both locations retain full relative paths, including when filenames coincide. Paths and hashes can themselves be sensitive; keep this index local unless independently reviewed and authorized for sharing. No indexed code is executed, and indexing does not authenticate experience or evidence.
 
-An existing index is updated only if it matches this helper's exact recognized format; an unknown/custom index or schema is left untouched. A missing previously indexed source stops refresh instead of silently dropping a record. If the legacy root `_partials` is a file rather than a directory, initialization preserves it and index refresh stops without changing the existing index. Symlinks, junctions, hard-linked files, special files and observed source or index changes stop the affected operation. Writers using `project_tools.py` share the project's existing lock; independent nonparticipating processes can still race these best-effort checks, so avoid concurrent external edits. If an interrupted initial creation leaves an incomplete index, preserve and reconcile it before retrying. The search reads the stored snapshot and explicitly reports that it did not check current source freshness; run refresh first when freshness matters. Neither command modifies previously existing partials or experience files.
+An existing index is updated only if it matches this helper's exact recognized format; an unknown/custom index or schema is left untouched. A missing previously indexed source stops refresh instead of silently dropping a record. If the legacy root `_partials` is a file rather than a directory, initialization preserves it and index refresh stops without changing the existing index. Symlinks, junctions, hard-linked files, special files and observed source or index changes stop the affected operation. Writers using `project_tools.py` share the project's existing lock; independent nonparticipating processes can still race these best-effort checks, so avoid concurrent external edits. If an interrupted initial creation leaves an incomplete index, preserve and reconcile it before retrying. Refresh preserves the existing partials and experience files.
 
 ## Existing algorithms and freshness
 To make an authorized working copy of a project-local schema, add `--schema path/to/existing.md` on initialization. The source is read only, copied byte-for-byte into `_boosterAI/algorithm.md`, and its relative path, SHA-256, modification time and copy time are recorded in `algorithm.provenance.json`. An existing algorithm or provenance prevents overwrite. Copying preserves provenance, not acceptance: inspect the source and current requirements before trusting any old done status.
