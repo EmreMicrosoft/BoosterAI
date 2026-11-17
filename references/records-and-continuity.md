@@ -1,6 +1,10 @@
 # Records, continuity and unavailable skills
 
-Load this workflow when retaining an authorized source message, preparing a handoff, or reconciling interrupted work. Use supported host readback to match an incoming item to its source and record its position in the recipient task. Record any active or terminal state at inspection separately from evidence of receipt, observed action and completed response.
+Load this workflow at the start of each BoosterAI turn and when retaining an authorized source message, preparing a handoff, or reconciling interrupted work.
+
+Before taking a dependent step or dispatching work, check the applicable current instructions and skill, the project record and latest checkpoint, and authorized relevant message records and behavior notes. Confirm active ownership through supported, bounded host readback. Report an inaccessible source or unconfirmed owner as unobserved and defer only the work that depends on it. Preserve original records and reconcile uncertain prior effects before retrying. Keep work affected by STOP, denial or refusal stopped across retries and alternate routes. Continue independent authorized work within the existing approval boundaries, including separate approval for root-instruction changes.
+
+Use supported host readback to match an incoming item to its source and record its position in the recipient task. Record any active or terminal state at inspection separately from evidence of receipt, observed action and completed response.
 
 Keep three scopes separate:
 - Private coordinator notes: commitments and personal follow-up only. Read only with the authorized owner; never copy their contents into public skills or project prompts.
