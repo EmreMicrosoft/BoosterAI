@@ -473,12 +473,15 @@ def rollback(repository,commit,scratch=None):
 def main():
     parser=argparse.ArgumentParser(description=__doc__);sub=parser.add_subparsers(dest='command',required=True)
     update=sub.add_parser('sync');update.add_argument('--root',required=True);update.add_argument('--force',action='store_true');update.add_argument('--scratch')
-    find=sub.add_parser('search');find.add_argument('--root',required=True);find.add_argument('--query',default='');find.add_argument('--category');find.add_argument('--tag')
+    find = sub.add_parser('search')
+    find.add_argument('--root', required=True)
+    profile.add_archive_search_filters(find)
     back=sub.add_parser('rollback');back.add_argument('--root',required=True);back.add_argument('--commit',required=True);back.add_argument('--scratch')
     args=parser.parse_args()
     try:
         if args.command=='sync':result=sync(args.root,args.force,scratch=args.scratch)
-        elif args.command=='search':result=search(args.root,args.query,args.category,args.tag)
+        elif args.command == 'search':
+            result = search(args.root, args.query or '', args.category, args.tag)
         else:result=rollback(args.root,args.commit,args.scratch)
         print(json.dumps(result,indent=2));return 1 if result.get('status') in ('SYNC_FAILED','ROLLBACK_FAILED') else 0
     except (ValueError,OSError,KeyError,TypeError,RecursionError) as error:

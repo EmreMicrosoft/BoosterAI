@@ -209,6 +209,9 @@ def parse_mermaid(document):
     authorization, or successful test evidence.
     """
     diagram = _diagram(document)
+    # Keep statement boundaries limited to physical CR/LF line endings.
+    _require(re.search(r"[\v\f\x1c-\x1e\x85\u2028\u2029]", diagram) is None,
+             "unsupported Mermaid line separator")
     lines = diagram.splitlines()
     _require(lines and lines[0].strip() == "flowchart TD", "expected flowchart TD")
     definitions = {}

@@ -178,6 +178,24 @@ class MermaidFixtureTests(unittest.TestCase):
             with self.subTest(separator=separator), self.assertRaises(ValueError):
                 schema.parse_mermaid(malformed)
 
+    def test_mermaid_statements_require_physical_line_endings(self):
+        """Reject nonphysical separators in Mermaid headers, edges and labels."""
+        edges = ["A[Start] --> B[Step]", "B --> C[End]"]
+        source = document(edges)
+        limit = max(map(len, edges))
+        for ending in ("\n", "\r\n", "\r"):
+            with self.subTest(ending=ending), patch.object(schema, "_MAX_LINE_CHARS", limit):
+                self.assertEqual(len(schema.parse_mermaid(source.replace("\n", ending))["edges"]), 2)
+        for separator in ("\u2028", "\u0085"):
+            cases = (
+                ("edges", source.replace("\n".join(edges), separator.join(edges), 1)),
+                ("header", source.replace("flowchart TD\n", "flowchart TD" + separator, 1)),
+                ("label", source.replace("[Start]", "[Start" + separator + " here]", 1)),
+            )
+            for location, malformed in cases:
+                with self.subTest(location=location, separator=separator), self.assertRaises(ValueError):
+                    schema.parse_mermaid(malformed)
+
     def test_mermaid_lookalike_inside_another_fence_is_not_a_graph(self):
         """A nested code example cannot impersonate a top-level source graph."""
         decoy = ("````python\n```mermaid\nflowchart TD\n"

@@ -75,6 +75,16 @@ class PublicationManifestAcceptance(unittest.TestCase):
             self.assertNotIn(private, result.stdout)
         self.assertEqual(LICENSE.read_bytes(), before)
 
+    def test_repeated_root_is_rejected_without_echoing_input(self):
+        """Reject two root arguments even when both select the existing checkout."""
+        manifest = json.dumps({'files': ['LICENSE'], 'private_terms': [TERM], 'old_commits': []})
+        result = subprocess.run(
+            [sys.executable, '-I', '-S', '-B', str(SCANNER), '--root', '.', '--root=' + str(ROOT)],
+            input=manifest, text=True, capture_output=True, cwd=ROOT, timeout=15, check=False)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'invalid arguments\n')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

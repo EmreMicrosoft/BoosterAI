@@ -1,10 +1,27 @@
 """Validate the deliberately limited JSON Schema vocabulary used by the archive."""
 
+import argparse
 import json
 import re
 import hashlib
 import math
 from pathlib import Path
+
+
+class _ArchiveFilterAction(argparse.Action):
+    """Store a supplied filter and allow subsequent identical values."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        previous = getattr(namespace, self.dest, None)
+        if previous is not None and previous != values:
+            parser.exit(2, 'conflicting archive filter values\n')
+        setattr(namespace, self.dest, values)
+
+
+def add_archive_search_filters(parser):
+    """Register the three optional scalar filters on an archive search parser."""
+    for option in ('--query', '--category', '--tag'):
+        parser.add_argument(option, action=_ArchiveFilterAction)
 
 
 class UnsupportedSchemaError(ValueError):

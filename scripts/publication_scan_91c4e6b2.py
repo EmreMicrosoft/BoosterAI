@@ -208,12 +208,14 @@ def unique_manifest_object(pairs):
 
 
 def main(argv=None):
-    """Read one bounded JSON manifest from stdin and emit only redacted results."""
+    """Require one project root before reading a bounded, private stdin manifest."""
     parser = PrivateParser(description=__doc__)
-    parser.add_argument('--root', required=True)
+    parser.add_argument('--root', action='append', required=True)
     args = parser.parse_args(argv)
+    if len(args.root) != 1:
+        parser.error('exactly one project root is required')
     try:
-        root = validated_root(args.root)
+        root = validated_root(args.root[0])
         raw = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
         if len(raw) > MAX_INPUT_BYTES:
             raise ScanError('invalid_manifest')

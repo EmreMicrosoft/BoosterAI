@@ -1,6 +1,6 @@
 """Verify omitted and explicit-empty archive filters through both CLI handlers."""
 
-from contextlib import nullcontext, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from io import BytesIO, StringIO
 import json
 from pathlib import Path
@@ -82,6 +82,54 @@ class ArchiveEmptyFilterParityTest(unittest.TestCase):
                     result = read(flags)
                     self.assertEqual([item['name'] for item in result['results']], names)
                     self.assertEqual(result['related_files_by_record'], {name: [] for name in names})
+
+
+class ArchiveRepeatedFilterParityTest(unittest.TestCase):
+    readers = (
+        (project_tools, 'search-archive', 'archive_search'),
+        (archive_sync, 'search', 'search'),
+    )
+
+    def test_conflicts_exit_before_search(self):
+        pairs = (('first', 'second'), ('second', 'first'), ('', 'first'), ('first', ''))
+        for module, command, method in self.readers:
+            for flag in ('--query', '--category', '--tag'):
+                for first, second in pairs:
+                    args = [module.__name__, command, '--root', str(PROJECT), flag, first, flag, second]
+                    stdout, stderr = StringIO(), StringIO()
+                    with self.subTest(reader=module.__name__, flag=flag, values=(first, second)):
+                        with (
+                            patch.object(module, method, return_value={}) as search,
+                            patch.object(sys, 'argv', args),
+                            redirect_stdout(stdout),
+                            redirect_stderr(stderr),
+                            self.assertRaises(SystemExit) as status,
+                        ):
+                            module.main()
+                        self.assertEqual(status.exception.code, 2)
+                        self.assertEqual(stdout.getvalue(), '')
+                        self.assertEqual(stderr.getvalue(), 'conflicting archive filter values\n')
+                        search.assert_not_called()
+
+    def test_omitted_and_repeated_identical_values_reach_search(self):
+        filters = ['--query=one', '--category=two', '--tag=three']
+        empty = ['--query=', '--category=', '--tag=']
+        cases = (
+            ([], ('', None, None)),
+            (filters * 2, ('one', 'two', 'three')),
+            (empty * 2, ('', '', '')),
+        )
+        for module, command, method in self.readers:
+            for flags, expected in cases:
+                args = [module.__name__, command, '--root', str(PROJECT), *flags]
+                with (
+                    self.subTest(reader=module.__name__, flags=flags),
+                    patch.object(module, method, return_value={}) as search,
+                    patch.object(sys, 'argv', args),
+                    redirect_stdout(StringIO()),
+                ):
+                    self.assertEqual(module.main(), 0)
+                    search.assert_called_once_with(str(PROJECT), *expected)
 
 
 if __name__ == '__main__':
