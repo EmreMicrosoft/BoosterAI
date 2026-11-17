@@ -326,10 +326,14 @@ def pointer_content(data):
     return json.dumps(data,indent=2).encode('utf-8')
 
 
-def read_pointer(work,name):
-    """Read one pointer as bytes, distinguishing a missing file from a read error."""
-    try:return safe(work,name).read_bytes()
-    except FileNotFoundError:return None
+def read_pointer(work, name):
+    """Read bounded pointer bytes and return None only for a missing pointer."""
+    try:
+        return _read_snapshot_bytes(
+            safe(work, name), MAX_METADATA, MAX_METADATA, 'archive pointer too large',
+        )
+    except FileNotFoundError:
+        return None
 
 
 def pointer_failure(work,reason,status,before_active,before_previous,desired_active=None,desired_previous=None):

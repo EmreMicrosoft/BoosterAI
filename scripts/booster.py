@@ -398,6 +398,7 @@ def self_check(root):
     for resource in resources:
         require(checked(root, resource).is_file(), 'missing bundled resource: ' + resource)
     for resource in ('scripts/booster.py', 'scripts/project_tools.py', 'scripts/archive_sync.py',
+                     'scripts/project_index_freshness_a62e9d47.py',
                      'scripts/archive_profile.py', 'scripts/find_directory.py',
                      'scripts/contribution_preflight_5c294f8d.py', 'scripts/publication_scan_91c4e6b2.py',
                      'scripts/claim_guard_8d31f72a.py', 'scripts/continuity_plan_64e9b1c2.py',
