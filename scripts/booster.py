@@ -379,7 +379,7 @@ def schema_status(root):
     return {'source': data['source'], 'source_changed': digest(source) != data.get('source_sha256'), 'working_copy_changed': digest(working) != data.get('source_sha256'), 'acceptance_verified': False}
 
 def check_codex_entry(text, expected_fields):
-    """Require matching narrow frontmatter and a link to the canonical root skill."""
+    """Check the stub metadata and its single plain inline route to the root skill."""
     if not text.startswith('---\n'):
         raise ValueError('Codex registration frontmatter must begin with ---')
     parts = text.split('---\n', 2)
@@ -393,13 +393,21 @@ def check_codex_entry(text, expected_fields):
         fields[key] = value.strip()
     if fields != expected_fields:
         raise ValueError('Codex registration metadata differs from canonical skill')
-    if '](../../../SKILL.md)' not in parts[2]:
-        raise ValueError('Codex registration is missing its canonical skill link')
+    canonical_link = '../../../SKILL.md'
+    links = re.findall(r'\]\(([^)\s]+)\)', parts[2])
+    require(canonical_link in links, 'Codex registration is missing its canonical skill link')
+    canonical_target = Path(canonical_link)
+    canonical_routes = sum(
+        Path(os.path.normpath(link)) == canonical_target
+        for link in links
+        if not link.startswith('/') and not any(marker in link for marker in ':?#\\')
+    )
+    require(canonical_routes == 1, 'Codex registration repeats its canonical skill link')
     return True
 
 
 def self_check(root):
-    """Check this package's deliberately small frontmatter contract, not generic YAML."""
+    """Check the package's narrow frontmatter and bundled route contract."""
     root = checked_root(root, 'package')
     require(sys.version_info >= (3, 10), 'Python 3.10 or newer required')
     canonical = checked(root, 'SKILL.md')
@@ -417,8 +425,13 @@ def self_check(root):
     require('<' not in fields['description'] and '>' not in fields['description'], 'invalid description markup')
     resources = re.findall(r'\]\((references/[^)]+)\)', parts[2])
     require(resources, 'no bundled references')
+    targets = set()
     for resource in resources:
-        require(checked(root, resource).is_file(), 'missing bundled resource: ' + resource)
+        path = checked(root, resource)
+        require(path.is_file(), 'missing bundled resource: ' + resource)
+        target = path.resolve(strict=True)
+        require(target not in targets, 'duplicate bundled resource: ' + resource)
+        targets.add(target)
     for resource in ('scripts/booster.py', 'scripts/project_tools.py', 'scripts/archive_sync.py',
                      'scripts/project_index_freshness_a62e9d47.py',
                      'scripts/archive_profile.py', 'scripts/find_directory.py',

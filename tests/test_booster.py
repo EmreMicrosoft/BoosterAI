@@ -1,6 +1,8 @@
+from contextlib import redirect_stdout
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -75,6 +77,67 @@ class PlanTests(unittest.TestCase):
     def test_status(self):
         p=plan();p['nodes'][0]['status']='report_ready'
         with self.assertRaises(ValueError):b.validate(p)
+
+class SelfCheckDuplicateRoutingTests(unittest.TestCase):
+    """Exercise the actual source checker without a workspace fixture."""
+
+    def _check_with_text(self, document, text):
+        original_read_text = Path.read_text
+        overlaid = []
+
+        def read_text(path, *args, **kwargs):
+            if path == document:
+                overlaid.append(path)
+                return text
+            return original_read_text(path, *args, **kwargs)
+
+        argv = ['booster.py', 'self-check', '--root', str(ROOT)]
+        with (patch.object(sys, 'argv', argv),
+              patch.object(Path, 'read_text', read_text),
+              redirect_stdout(io.StringIO()) as stdout):
+            status = b.main()
+
+        self.assertEqual(overlaid, [document])
+        return status, json.loads(stdout.getvalue())
+
+    def _check_bundled_links(self, *targets):
+        document = ROOT / 'SKILL.md'
+        _, frontmatter, _ = document.read_text(encoding='utf-8').split('---\n', 2)
+        links = '\n'.join(f'[Workflow]({target})' for target in targets)
+        return self._check_with_text(document, f'---\n{frontmatter}---\n\n{links}\n')
+
+    def test_distinct_bundled_reference_targets_succeed(self):
+        targets = ['references/operating-algorithm.md', 'references/project-workspace.md']
+        status, report = self._check_bundled_links(*targets)
+        self.assertEqual(status, 0)
+        self.assertTrue(report['valid'])
+        self.assertEqual(report['references_checked'], targets)
+
+    def test_duplicate_bundled_reference_targets_fail(self):
+        first = 'references/operating-algorithm.md'
+        for repeated in (first, 'references/./operating-algorithm.md'):
+            with self.subTest(repeated=repeated):
+                status, report = self._check_bundled_links(first, repeated)
+                self.assertEqual(status, 1)
+                self.assertEqual(report, {'error': 'duplicate bundled resource: ' + repeated})
+
+    def test_harmless_registration_link_succeeds(self):
+        document = ROOT / '.agents/skills/booster-ai/SKILL.md'
+        text = document.read_text(encoding='utf-8')
+        status, report = self._check_with_text(document, text + '\n[README](../../../README.md)\n')
+        self.assertEqual(status, 0)
+        self.assertTrue(report['valid'])
+        self.assertEqual(report['codex_repo_registration'], 'present_valid')
+
+    def test_duplicate_canonical_registration_targets_fail(self):
+        document = ROOT / '.agents/skills/booster-ai/SKILL.md'
+        text = document.read_text(encoding='utf-8')
+        for repeated in ('../../../SKILL.md', '../../.././SKILL.md'):
+            with self.subTest(repeated=repeated):
+                status, report = self._check_with_text(document, text + f'\n[Repeat]({repeated})\n')
+                self.assertEqual(status, 1)
+                self.assertEqual(report, {'error': 'Codex registration repeats its canonical skill link'})
+
 
 class CollectorTests(unittest.TestCase):
     def setUp(self):
