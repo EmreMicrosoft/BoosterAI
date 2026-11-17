@@ -66,6 +66,7 @@ _POLICY_FILES = ('SKILL.md', 'AGENTS.md',
                  'references/publication-privacy.md',
                  'references/records-and-continuity.md',
                  'references/solution-archive.md',
+                 'references/user-delivery.md',
 )
 
 

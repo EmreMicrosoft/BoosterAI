@@ -115,7 +115,9 @@ Before a shared publication, follow [publication privacy](references/publication
 
 ## Image reading
 
-If an image is unreadable, follow the
+Follow [user delivery](references/user-delivery.md) when a task needs a permitted PowerShell command, or when reporting progress, handling corrections, classifying evidence or delivering a file.
+
+If an image is unreadable or its text is unclear, follow the
 [image-reading procedure](references/image-reading-procedure.md). Inspect the
 original, inspect a cropped, enlarged or enhanced view, and compare OCR output
 with the image. Count earlier attempts at these methods and complete the
@@ -126,7 +128,7 @@ Request transcription only after all three methods were attempted and failed.
 
 ## Hygiene and delivery
 
-At the end of a local task that creates or saves function examples, list each resulting file in project-root `_partials/` or `_boosterAI/_partials/` as a clickable link when the current host supports a valid file-link format. Verify that each target exists and use the actual path, not a guessed URL or an unrelated file. Include a short purpose and the observed test status. If valid clickable local links are unsupported, give the exact project-relative path and state that limitation; do not claim a link was delivered or opened. Keep private local paths in the authorized local task audience, not public repository reports or another project. These are navigation links for reading examples, never production dependencies.
+At the end of a local task that creates or saves function examples, list each resulting file in project-root `_partials/` or `_boosterAI/_partials/` as a clickable link when the current host supports a valid file-link format. Verify that each target exists and use the actual path, not a guessed URL or an unrelated file. Include a short purpose and the observed test status. If valid clickable local links are unsupported, give the exact absolute path in the authorized local audience and state that limitation; do not claim a link was delivered or opened. Keep private local paths in the authorized local task audience, not public repository reports or another project. These are navigation links for reading examples, never production dependencies.
 
 Read [owned cleanup](references/owned-cleanup.md) when producing temporary artifacts or reclaiming them. Select the allowed scratch path and configure process-local temp/cache paths before execution; register cleanup before fallible work. Check usage at entry and completion, remove known disposable artifacts within the owner's established authority, and reconcile interrupted leftovers before producing more. Never delete unknown/active files or evidence needed for open work. Cleanup is recoverable by default, not blanket permission for permanent deletion. Do not apply the separate daily-log approval protocol to explicitly authorized disposable test fixtures.
 

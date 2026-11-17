@@ -340,6 +340,8 @@ class CollectorTests(unittest.TestCase):
         guidance=(partials.with_name('samples-unavailable')/'README.md').read_text()
         self.assertIn('read-only learning references',guidance)
         self.assertIn('verified clickable file links when the host supports them',guidance)
+        self.assertIn("Give each file's purpose and observed test status.",guidance)
+        self.assertIn('give the exact absolute path in the authorized local audience',guidance)
         self.assertIn('Check that targets exist; never invent links',guidance)
         self.assertIn('Never import, link, include, dynamically load or build against',guidance)
 
