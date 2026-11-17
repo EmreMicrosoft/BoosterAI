@@ -1,8 +1,9 @@
-"""Check freshness CLI parsing without opening an index or source file."""
+"""Check freshness CLI arguments and exit codes without opening an index."""
 
 from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import io
+import json
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -45,6 +46,7 @@ class FreshnessCliArgumentTest(unittest.TestCase):
         self.assertEqual(stderr, '')
         self.assertIn('--root', stdout)
         self.assertIn('--path', stdout)
+        self.assertIn('--require-current', stdout)
 
     def test_repeated_root_is_rejected_before_comparison(self):
         base = ['--root', '.', '--path', '_partials/README.md',
@@ -65,6 +67,65 @@ class FreshnessCliArgumentTest(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertEqual(stdout, '')
                 self.assertTrue(stderr.rstrip().endswith('invalid arguments. Use --help for usage.'))
+
+    def test_require_current_rejects_an_explicit_value_before_comparison(self):
+        value = 'synthetic-argument-value'
+        code, stdout, stderr = self.invoke_parser([
+            '--root', '.', '--path', '_partials/README.md', f'--require-current={value}',
+        ])
+        self.assertEqual(code, 2)
+        self.assertEqual(stdout, '')
+        self.assertTrue(stderr.rstrip().endswith('invalid arguments. Use --help for usage.'))
+        self.assertNotIn(value, stderr)
+
+    def compare(self, paths, strict, *, report=None, error=None):
+        argv = ['--root', '.']
+        for path in paths:
+            argv.extend(['--path', path])
+        if strict:
+            argv.append('--require-current')
+        with (
+            patch.object(FRESHNESS, 'check_freshness', return_value=report, side_effect=error) as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            code = FRESHNESS.main(argv)
+        check.assert_called_once_with('.', *paths)
+        self.assertEqual(stderr.getvalue(), '')
+        return code, stdout.getvalue()
+
+    def test_require_current_single_entry_keeps_the_report(self):
+        path = '_partials/README.md'
+        for status, strict_exit in (('CURRENT', 0), ('STALE', 3)):
+            report = {'status': status, 'scope': 'selected_index_entry', 'path': path}
+            for strict, expected in ((False, 0), (True, strict_exit)):
+                with self.subTest(status=status, strict=strict):
+                    self.assertEqual(self.compare([path], strict, report=report),
+                                     (expected, json.dumps(report) + '\n'))
+
+    def test_require_current_uses_aggregate_status_and_keeps_ordered_entries(self):
+        current_path = '_partials/README.md'
+        other_path = '_boosterAI/_partials/README.md'
+        for status, strict_exit in (('CURRENT', 0), ('STALE', 3)):
+            report = {'status': status, 'scope': 'selected_index_entries', 'entries': [
+                {'status': status, 'scope': 'selected_index_entry', 'path': other_path},
+                {'status': 'CURRENT', 'scope': 'selected_index_entry', 'path': current_path},
+            ]}
+            for strict, expected in ((False, 0), (True, strict_exit)):
+                with self.subTest(status=status, strict=strict):
+                    self.assertEqual(self.compare([current_path, other_path], strict, report=report),
+                                     (expected, json.dumps(report) + '\n'))
+
+    def test_require_current_preserves_incomplete_comparison_errors(self):
+        marker = 'synthetic-source-detail'
+        for error, code in ((FRESHNESS.FreshnessError('path_not_indexed'), 'path_not_indexed'),
+                            (PermissionError(marker), 'access_denied'),
+                            (OSError(marker), 'index_or_source_unavailable')):
+            expected = json.dumps({'status': 'ERROR', 'error': code}) + '\n'
+            for strict in (False, True):
+                with self.subTest(code=code, strict=strict):
+                    self.assertEqual(self.compare(['_partials/README.md'], strict, error=error),
+                                     (1, expected))
 
 
 if __name__ == '__main__':

@@ -36,11 +36,14 @@ To check freshness, select the exact paths of indexed files you are authorized t
 ```powershell
 py -3.12 -I -S -B scripts/project_index_freshness_a62e9d47.py --root . --path _boosterAI/_partials/README.md
 py -3.12 -I -S -B scripts/project_index_freshness_a62e9d47.py --root . --path _partials/README.md --path _boosterAI/_partials/README.md
+py -3.12 -I -S -B scripts/project_index_freshness_a62e9d47.py --root . --path _partials/README.md --path _boosterAI/_partials/README.md --require-current
 ```
 
-`CURRENT` means both the size and SHA-256 match. `STALE` means at least one differs. One `--path` returns the entry itself. Repeated `--path` options return an `entries` array ordered by recorded path. The overall result is `STALE` if any selected entry is stale. Both `CURRENT` and `STALE` are successful comparisons and exit with code `0`.
+`CURRENT` means both the size and SHA-256 match. `STALE` means at least one differs. One `--path` returns the entry itself. Repeated `--path` options return an `entries` array ordered by recorded path. The overall result is `STALE` if any selected entry is stale. By default, both `CURRENT` and `STALE` are successful comparisons and exit with code `0`.
 
-Duplicate or unindexed paths are rejected before reading any selected file. A failed read or an observed index change also ends the check with an `ERROR` response and exit code `1`, without partial results.
+Use `--require-current` when all selected entries must be current. The flag returns the same JSON report with exit code `0` when every selected entry is `CURRENT` and `3` when any is `STALE`.
+
+Duplicate or unindexed paths are rejected before reading any selected file. These rejections, failed reads and observed index changes return `ERROR` with exit code `1` and no partial results. Argument parsing errors exit with code `2`.
 
 Use `refresh-project-index` when you need to populate the index or update its stored records.
 

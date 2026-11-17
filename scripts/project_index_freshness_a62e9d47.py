@@ -71,11 +71,13 @@ class _FreshnessArgumentParser(argparse.ArgumentParser):
 
 
 def main(argv=None):
-    """Print the comparison as JSON; exit 1 if the check could not complete."""
+    """Report the comparison with an optional exit gate for stale entries."""
     parser = _FreshnessArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument('--root', action='append', required=True, help='authorized project root')
     parser.add_argument('--path', action='append', required=True,
                         help='exact indexed path authorized for reading (repeat to compare several)')
+    parser.add_argument('--require-current', action='store_true',
+                        help='exit 3 if any selected indexed file is stale')
     args = parser.parse_args(argv)
     if len(args.root) != 1 or not args.root[0]:
         parser.error('exactly one nonempty project root is required')
@@ -88,6 +90,8 @@ def main(argv=None):
     except (OSError, ValueError, RecursionError):
         result = {'status': 'ERROR', 'error': 'index_or_source_unavailable'}
     print(json.dumps(result))
+    if args.require_current and result['status'] == 'STALE':
+        return 3
     return int(result['status'] == 'ERROR')
 
 
