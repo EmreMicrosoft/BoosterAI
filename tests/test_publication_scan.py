@@ -1,6 +1,8 @@
 """Exercise the redacted, read-only publication scanner in real Python processes."""
 
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
+from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -183,6 +185,55 @@ class PublicationScanTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 'unsafe_root')
         read.assert_not_called()
         self.assertEqual(marker.read_text(encoding='utf-8'), 'preserve')
+
+
+class PublicationScanRootArgumentTests(unittest.TestCase):
+    def assert_root_rejected_before_access(self, argv):
+        with (
+            patch.object(scanner, 'validated_root',
+                         side_effect=AssertionError('unexpected root validation')) as validate,
+            patch.object(sys, 'stdin') as stdin,
+            redirect_stdout(StringIO()) as stdout,
+            redirect_stderr(StringIO()) as stderr,
+            self.assertRaises(SystemExit) as caught,
+        ):
+            stdin.buffer.read.side_effect = AssertionError('unexpected manifest read')
+            scanner.main(argv)
+        self.assertEqual(caught.exception.code, 2)
+        validate.assert_not_called()
+        stdin.buffer.read.assert_not_called()
+        self.assertEqual(stdout.getvalue(), '')
+        self.assertEqual(stderr.getvalue(), 'invalid arguments\n')
+
+    def test_blank_root_is_rejected_before_access(self):
+        for root in ('', ' \t ', '\u2003'):
+            for argv in (['--root', root], ['--root=' + root]):
+                with self.subTest(argv=argv):
+                    self.assert_root_rejected_before_access(argv)
+
+    def test_root_must_be_supplied_exactly_once(self):
+        for argv in ([], ['--root', '.', '--root=private-second-root']):
+            with self.subTest(argv=argv):
+                self.assert_root_rejected_before_access(argv)
+
+    def test_nonblank_root_keeps_its_original_spelling(self):
+        root = ' project folder'
+        manifest = {'files': ['LICENSE'], 'private_terms': [], 'old_commits': []}
+        report = {'findings': []}
+        with (
+            patch.object(scanner, 'validated_root', return_value=ROOT) as validate,
+            patch.object(scanner, 'scan_manifest', return_value=report) as scan,
+            patch.object(sys, 'stdin') as stdin,
+            redirect_stdout(StringIO()) as stdout,
+            redirect_stderr(StringIO()) as stderr,
+        ):
+            stdin.buffer.read.return_value = json.dumps(manifest).encode('utf-8')
+            self.assertEqual(scanner.main(['--root', root]), 0)
+        validate.assert_called_once_with(root)
+        stdin.buffer.read.assert_called_once_with(scanner.MAX_INPUT_BYTES + 1)
+        scan.assert_called_once_with(ROOT, manifest)
+        self.assertEqual(json.loads(stdout.getvalue()), report)
+        self.assertEqual(stderr.getvalue(), '')
 
 
 if __name__ == '__main__':

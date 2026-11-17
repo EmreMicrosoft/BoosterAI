@@ -208,11 +208,11 @@ def unique_manifest_object(pairs):
 
 
 def main(argv=None):
-    """Require one project root before reading a bounded, private stdin manifest."""
+    """Require one nonblank project root before reading a bounded, private stdin manifest."""
     parser = PrivateParser(description=__doc__)
     parser.add_argument('--root', action='append', required=True)
     args = parser.parse_args(argv)
-    if len(args.root) != 1:
+    if len(args.root) != 1 or not args.root[0].strip():
         parser.error('exactly one project root is required')
     try:
         root = validated_root(args.root[0])
