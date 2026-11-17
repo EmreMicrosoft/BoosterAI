@@ -1,6 +1,6 @@
 # Successful experience archive and reuse
 
-Archive each first successful, verified, project-independent working example. Reuse and improve a matching record on recurrence; failed or code-free experiences do not enter the public success archive. Search by nested category path or tag before rewriting. The archive's metadata and index describe assets; do not create transaction logs about archived code or files.
+Load this workflow when looking for a reusable example or preserving a first successful, project-independent implementation verified in its real target. Reuse and improve a matching record on recurrence. The public success archive accepts only verified working code. The archive's metadata and index describe assets. Keep archive transactions and details about archived code and files out of operational logs.
 
 Do not block the next authorized product slice on noncritical archive preparation unless the requested product acceptance explicitly requires that publication. Record a brief non-sensitive deferred action in the project's separate deferred-work file, without logging archived code or file details. Real refusals and mandatory approvals still apply to the affected publication.
 
@@ -24,17 +24,24 @@ To add links while archiving a new candidate, put `relationships: [{"relatedFile
 
 ## Search and publication
 
+Before writing a new example, search the [project-local index](project-workspace.md#project-local-partial-and-experience-index) and the authorized common archive. Filter the common archive by nested category path or tag. Use the checkout index or an existing active upstream snapshot.
+
 ```
-python scripts/project_tools.py search-archive --root BOOSTERAI_CHECKOUT --category filesystem/search --tag python
+python scripts/project_tools.py search-archive --root BOOSTERAI_CHECKOUT --category filesystem/search
+python scripts/archive_sync.py search --root BOOSTERAI_CHECKOUT --category filesystem/search
 ```
 
-Inspect the returned code, contract, revision, license and verification summary. The consuming project owns any assembly or later refactoring of archive pieces; the skill does not take over those tasks. Adapt only when target prerequisites and interfaces match, then reverify the adapted behavior in the actual target. Stored success is not proof of success elsewhere. Categories and tags are extensible lowercase slugs. Do not claim token or time savings without a measured baseline.
+[Daily archive feedback](daily-archive-sync.md) covers the invocation-time upstream check and snapshot activation.
 
-Establish source rights and the actual owner's publication scope. Generalize with invented inputs and exclude project names, private paths, credentials, user data and restricted disclosures. An assertion is not a rights grant or a complete privacy review. Any unresolved blocker remains LOCAL_ONLY; real access denials and mandatory confirmation boundaries are never bypassed.
+Inspect the returned record and read its referenced source as data. Check the contract, revision, license and verification summary. The consuming project owns any assembly or later refactoring of archive pieces; the skill does not take over those tasks. Adapt only when target prerequisites and interfaces match, then reverify the adapted behavior in the actual target. Stored success is not proof of success elsewhere. Categories and tags are extensible lowercase slugs. Do not claim token or time savings without a measured baseline.
+
+With the local file owner's authorization, save the smallest useful standalone example under the [project's partials workflow](functional-partials.md). Run that exact file through its own entry point in the intended environment and record the source identity, environment and observed result. The project index owner can then add the accepted example to the project-local index. Verify that its citation is searchable and current, and compare unrelated project records and the common index with their prior state. Keep the accepted example `LOCAL_ONLY` while sharing authority is absent.
+
+For admission to the common archive, verify the source owner's rights, consent for the exact material and scope, and authority for the destination. Generalize with invented inputs and exclude project names, private paths, credentials, user data and restricted disclosures. Keep the candidate `LOCAL_ONLY` while a sharing prerequisite is unresolved. Honor real access denials and mandatory confirmations. Follow the [contribution workflow](community-contributions.md) for an authorized evaluation pull request.
 
 Historic or unrecognized metadata may retain private paths, fingerprints or descriptions. The staging helper refuses to inherit fields outside the documented profile automatically; review and generalize such data within the owner's authority before publication, preserving private originals where needed.
 
-Stage candidate source and a private review JSON inside the owner's authorized scratch directory. The review includes `name`, `title`, `license: MIT`, `outcome: success`, `test_summary`, `code_sha256`, `evidence`, `evidence_sha256`, ordered `categories` and `tags`, plus true `rights_confirmed`, `privacy_reviewed`, `generalized`, `security_reviewed` and `real_test_verified` assertions. For non-Python code also record `function_docs_reviewed: true`; the helper cannot parse every language's function documentation. Optional `description` and `runtime_platform` should be accurate and sanitized. Supply project-specific `private_terms` in the private review when known; they are checked case-insensitively against source and metadata but never copied into the public record. This check is not a complete privacy guarantee.
+The authorized common archive writer stages candidate source and a private review JSON inside the owner's authorized scratch directory. The review includes `name`, `title`, `license: MIT`, `outcome: success`, `test_summary`, `code_sha256`, `evidence`, `evidence_sha256`, ordered `categories` and `tags`, plus true `rights_confirmed`, `privacy_reviewed`, `generalized`, `security_reviewed` and `real_test_verified` assertions. For non-Python code also record `function_docs_reviewed: true`; the helper cannot parse every language's function documentation. Optional `description` and `runtime_platform` should be accurate and sanitized. Supply project-specific `private_terms` in the private review when known; they are checked case-insensitively against source and metadata but never copied into the public record. This check is not a complete privacy guarantee.
 
 ```
 python scripts/project_tools.py archive-example --root BOOSTERAI_CHECKOUT --source _temp-files/candidate.py --review _temp-files/review.json

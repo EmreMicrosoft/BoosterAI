@@ -12,4 +12,12 @@ The scanner checks listed filenames and contents case-insensitively for private 
 
 `NO_MATCH_REVIEW_REQUIRED` means only that these specified checks found nothing in these specified files. It does not prove privacy, source rights, the completeness of the file list or private-term list, and it does not detect every secret or project-specific clue. Review the entire intended public tree and any non-text artifacts independently before publishing. The scanner checks containment and file identity but is not an OS sandbox against hostile concurrent filesystem replacement.
 
-When a clean Git history is required, separately construct and verify the actual commit graph and remote refs using supported Git and host tools. A clean file scan does not establish that the Git commit is parentless, that no old branches or tags were pushed, or that the remote repository contains no previous commits. Do not rewrite history, publish or delete anything unless the actual owner has authorized that exact scope and all applicable safety and action-time approval boundaries are satisfied.
+## Source and package publication
+
+For a source-only release, review the exact source diff, parent and proposed refs against independent acceptance of the changed slice. Keep unrelated working changes, private evidence and unaccepted package or marketplace artifacts outside the release.
+
+For a package release, review the final built artifacts and the exact staged marketplace registration, including their metadata and non-text files. Match the source revision, package files and version, runtime manifest and marketplace registration to the scope covered by independent acceptance. Identify installed-copy and live host observations by their actual targets.
+
+For either release, review file paths and contents, commit messages and metadata in every commit reachable from each proposed ref. Verify the actual commit graph and remote refs using supported Git and host tools. Review the updated scope if the proposed content, parent or refs change. When a clean Git history is required, verify parentage and check the destination for earlier branches, tags and commits.
+
+Do not rewrite history, publish or delete anything unless the actual owner has authorized that exact scope and all applicable safety and action-time approval boundaries are satisfied.

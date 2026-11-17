@@ -2,6 +2,28 @@
 
 A portable instruction skill for incremental, evidence-driven software delivery. It organizes work without pretending that more agents, a green build, or a status file constitute working software.
 
+## Architecture and verification
+
+BoosterAI brings a skill and an engineering harness together in one portable
+package. The architecture moves procedures into on-demand references and keeps
+existing script interfaces stable as the canonical skill becomes a shorter
+router. [Canonical skill](SKILL.md)
+
+- The host coordinates permitted work, checks the current owner of each file
+  and dispatches independent agents within disjoint scopes. The Harness keeps
+  one serial critical-path run, its verified dependencies, budgets, STOP and
+  real acceptance. [Single-executor harness](references/optional-harness.md)
+- The host workflow records manual delivery, recipient processing and target
+  effects separately. Native hook acceptance requires supported event access,
+  effective trust and a real test bound to the same eligible run. Source
+  self-check, source CI, installed-byte checks and native execution each
+  supply their own evidence. [Host integration and evidence](references/host-adapter.md)
+- Independent acceptance uses the exact revision and actual product entry.
+  The owner investigates failed or unverified criteria and a fresh reviewer
+  checks the corrected scope. Scheduling and a general script system are
+  future extension points. They use the same authority, ownership and
+  acceptance path.
+
 ## Use
 Read `SKILL.md` in your coding agent and explicitly ask it to apply BoosterAI to your authorized project. Product coding uses the Markdown skill and bundled Python standard-library harness together. Agent-specific installation and skill discovery differ; placing this repository on disk does **not** prove that an agent discovers or follows it. No hooks, global configuration, schedulers or other projects are changed by this package.
 

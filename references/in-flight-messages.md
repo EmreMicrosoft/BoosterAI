@@ -1,5 +1,7 @@
 # In-flight message routing
 
+Load this workflow when a correction, STOP, related addition or independent request arrives during active work. Use the [host integration and evidence](host-adapter.md) workflow to select a supported interface and check receipt, action and completion separately.
+
 This is requirement 43's host-executed workflow, not an autonomous listener, scheduler or agent launcher. Keep the existing task owner and project record. Never assume a message reached an active task merely because another tool accepted it.
 
 1. **Receive and deduplicate.** Use the host's supported message delivery/readback. Record the source message identity in the existing project record, with the affected task and last processed identity. Reconcile an uncertain send before retrying; do not dispatch the same request twice. Do not copy private message content into the shared skill or public archive.

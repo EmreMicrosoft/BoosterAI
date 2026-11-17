@@ -1,5 +1,14 @@
 # Operating algorithm
 
+## When to load this workflow
+
+Load this workflow when choosing, revising, or recovering the next executable
+slice of an authorized software task. Use the current request, existing
+algorithm, scoped evidence, and file ownership to select the next slice and its
+[real-test contract](#real-test-contract). If a consequential product decision
+still blocks selection after reviewing the existing records, requirements,
+and code, follow the [clarification gate](#requirement-40-clarification-gate).
+
 ## Algorithm format
 Use the project's existing format, preferably a short Markdown table plus a Mermaid flowchart. A simple task needs a simple diagram. Required facts (not new paperwork): goal and acceptance, current revision, owner, ordered nodes and dependencies, next slice, observed state, real evidence link, blocker and next action. Detail each executable node with input, preconditions, effect, target, expected observation, recovery and stop conditions. Decisions must have named branches; loops must have an attempt/time budget and a changed-hypothesis requirement. An input receipt is not an executed effect.
 

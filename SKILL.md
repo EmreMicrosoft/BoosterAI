@@ -83,6 +83,8 @@ Bağımlılıklar ve dosya sahipliği gözetilir; çakışabilecek işler aynı 
 
 Apply [in-flight message routing](references/in-flight-messages.md) through the host's supported message and subagent tools. Receipt, dispatch, execution and verified integration are distinct states; the skill alone does not create a message listener or spawn agents.
 
+Use [host integration and evidence](references/host-adapter.md) when selecting a supported host interface or checking delivery, hook and run evidence.
+
 ## Keep attention on delivery
 
 At each natural checkpoint ask: What actual product behavior improved? What exact obstacle remains? What single action reduces it next? If two consecutive checkpoints only repeat the same status or preparation, change the approach: inspect the blocker, shrink the slice, remove unnecessary coordination, or report the exact external action required. Do not invent speculative infrastructure or parallel jobs. Preserve active owners, user input and unrelated work.

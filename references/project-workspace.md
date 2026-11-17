@@ -1,5 +1,7 @@
 # Project workspace and existing records
 
+Load this workflow when choosing project records, setting up a workspace, locating standard or legacy partials, copying a project-local schema, or checking schema or index freshness. Record the revision and target of each verification, including whether it ran on the local checkout or in a source CI workspace.
+
 Create `<project-root>/_boosterAI/` for durable BoosterAI-owned work: the working algorithm, evidence and handoffs. Create or reuse `<project-root>/_boosterAI/_partials/` for functional pieces and their README index. By default scratch, cleanup manifests, quarantine and helper locks live under `_boosterAI/`. An explicit user-selected temporary directory inside the authorized project overrides that default for temporary artifacts. Product integration remains the consuming project's responsibility; this workspace convention never authorizes moving existing product files or accessing another project.
 
 Inspect the existing record system before choosing a record option. Preserve its files and formats in place. New records belong in `_boosterAI/PROJECT_RECORDS.md`. The generated record has sections for goal and acceptance, current state and next action, backlog, and decisions and evidence. It refers to the working `algorithm.md`.
