@@ -308,7 +308,19 @@ def workspace_init(root, records_existing=None, create_records=False, schema=Non
             create_record = not nested_exists
         if not create_record:
             require(record.is_file(), 'project records path is not a file')
-    # Select or reject records before creating any part of the scaffold.
+    # Select records and validate a selected schema before creating the scaffold.
+    algorithm_path = '_boosterAI/algorithm.md'
+    provenance_path = '_boosterAI/algorithm.provenance.json'
+    if schema:
+        algorithm = checked(root, algorithm_path)
+        provenance = checked(root, provenance_path)
+        source = checked(root, schema)
+        require(source.is_file() and source.stat().st_nlink == 1, 'schema must be an ordinary file')
+        require(source != algorithm, 'source is already the owned algorithm')
+        require(not algorithm.exists() and not provenance.exists(), 'algorithm or provenance exists; reconcile instead of overwriting')
+        content = source.read_bytes()
+        source_sha256 = hashlib.sha256(content).hexdigest()
+        source_mtime_ns = source.stat().st_mtime_ns
     report = partials_init(root)
     owned = checked(root, '_boosterAI')
     owned.mkdir(exist_ok=True)
@@ -321,15 +333,12 @@ def workspace_init(root, records_existing=None, create_records=False, schema=Non
             stream.write('# Project records\n\n## Goal and acceptance\n\n## Current state and next action\n\n## Backlog\n\n## Decisions and evidence\n\nBoosterAI algorithm: `algorithm.md`.\n')
     report['project_record'] = str(record.relative_to(root)) if record else None
     report['records_status'] = 'selected' if record else 'not_selected_inspect_existing_system'
-    algorithm = checked(root, '_boosterAI/algorithm.md')
-    provenance = checked(root, '_boosterAI/algorithm.provenance.json')
+    algorithm = checked(root, algorithm_path)
+    provenance = checked(root, provenance_path)
     if schema:
-        source = checked(root, schema)
-        require(source.is_file() and source.stat().st_nlink == 1, 'schema must be an ordinary file')
-        require(source != algorithm, 'source is already the owned algorithm')
+        # Destinations may have appeared while scaffolding.
         require(not algorithm.exists() and not provenance.exists(), 'algorithm or provenance exists; reconcile instead of overwriting')
-        content = source.read_bytes()
-        origin = {'source': schema, 'source_sha256': hashlib.sha256(content).hexdigest(), 'source_mtime_ns': source.stat().st_mtime_ns, 'copied_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'relationship': 'working-copy; source preserved; compare hash before reuse'}
+        origin = {'source': schema, 'source_sha256': source_sha256, 'source_mtime_ns': source_mtime_ns, 'copied_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'relationship': 'working-copy; source preserved; compare hash before reuse'}
         with algorithm.open('xb') as stream:
             stream.write(content)
         with provenance.open('x', encoding='utf-8') as stream:
