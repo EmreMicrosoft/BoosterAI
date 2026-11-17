@@ -402,5 +402,38 @@ class FlowCardTests(unittest.TestCase):
                     package.self_check(ROOT)
 
 
+class FlowAuditBudgetTests(unittest.TestCase):
+    @staticmethod
+    def call(mode, data, limit):
+        output = io.StringIO()
+        with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8") as source:
+            with (patch.object(sys, "stdin", source), patch.object(sys, "stdout", output),
+                  patch.object(flow, "_MAX_STDIN", limit)):
+                code = flow.main([mode])
+        return code, json.loads(output.getvalue())
+
+    def test_drafts_and_audit_use_the_compact_utf8_budget(self):
+        """Accept a fitting UTF-8 envelope even if an escaped version is larger."""
+        document = SYNTHETIC_DOCUMENT + "\n" + "\u011f\U0001f642" * 40 + "\n"
+        raw = document.encode("utf-8")
+        bundle = flow.generate_drafts(document)
+        request = {"document": document, "bundle": bundle}
+        compact = json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        escaped = json.dumps(request, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+        limit = len(compact)
+        self.assertLess(len(raw), limit - 1)
+        self.assertLess(limit, len(escaped))
+
+        self.assertEqual(self.call("drafts", raw, limit), (0, bundle))
+        code, report = self.call("audit", compact, limit)
+        self.assertEqual(code, 0)
+        self.assertTrue(report["valid"])
+        self.assertFalse(report["execution_allowed"])
+        self.assertEqual(self.call("drafts", raw, limit - 1),
+                         (2, {"valid": False, "error": "source and draft exceed compact audit request limit"}))
+        self.assertEqual(self.call("audit", escaped, limit),
+                         (2, {"valid": False, "error": "input too large"}))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

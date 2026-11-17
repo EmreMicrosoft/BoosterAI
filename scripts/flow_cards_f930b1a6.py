@@ -209,10 +209,10 @@ def _audit_request_fits(document, bundle):
     ``document`` and ``bundle`` form the normal compact JSON audit request.
     Return False as soon as its UTF-8 size would exceed the CLI input bound;
     otherwise return True. This computes size incrementally and does not write,
-    transmit, or execute the source. Whitespace added by a caller can still make
-    an otherwise fitting JSON request exceed the explicit input limit.
+    transmit, or execute the source. Optional Unicode escaping or whitespace
+    added by a caller can still make its JSON request exceed the input limit.
     """
-    encoder = json.JSONEncoder(ensure_ascii=True, separators=(",", ":"))
+    encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
     size = 0
     for part in encoder.iterencode({"document": document, "bundle": bundle}):
         size += len(part.encode("utf-8"))

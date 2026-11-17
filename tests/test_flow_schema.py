@@ -196,6 +196,32 @@ class MermaidFixtureTests(unittest.TestCase):
                 with self.subTest(location=location, separator=separator), self.assertRaises(ValueError):
                     schema.parse_mermaid(malformed)
 
+    def test_mermaid_line_length_covers_header_blank_and_edge(self):
+        """Check the physical character limit before trimming or skipping."""
+        original = document(["", "A[Ba\u015fla] --> B[End]"]).split("\n")
+        header = original.index("flowchart TD")
+        expected_edges = [{"from": "A", "to": "B", "label": None}]
+        for location, index in (("header", header), ("blank", header + 1), ("edge", header + 2)):
+            at_limit = original.copy()
+            at_limit[index] = at_limit[index].ljust(2048)
+            over_limit = at_limit.copy()
+            over_limit[index] += " "
+            for ending in ("\n", "\r\n", "\r"):
+                with self.subTest(location=location, ending=ending):
+                    result = schema.parse_mermaid(ending.join(at_limit))
+                    self.assertEqual(result["edges"], expected_edges)
+                    with self.assertRaisesRegex(ValueError, "^diagram line length limit exceeded$"):
+                        schema.parse_mermaid(ending.join(over_limit))
+
+    def test_mermaid_line_limit_preserves_error_order(self):
+        """Report an earlier invalid statement before a later oversized blank."""
+        oversized_blank = " " * 2049
+        invalid_edge = "unrecognized edge"
+        with self.assertRaisesRegex(ValueError, "^unsupported Mermaid edge syntax$"):
+            schema.parse_mermaid(document([invalid_edge, oversized_blank]))
+        with self.assertRaisesRegex(ValueError, "^diagram line length limit exceeded$"):
+            schema.parse_mermaid(document([oversized_blank, invalid_edge]))
+
     def test_mermaid_lookalike_inside_another_fence_is_not_a_graph(self):
         """A nested code example cannot impersonate a top-level source graph."""
         decoy = ("````python\n```mermaid\nflowchart TD\n"

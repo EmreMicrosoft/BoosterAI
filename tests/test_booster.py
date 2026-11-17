@@ -361,9 +361,27 @@ class CollectorTests(unittest.TestCase):
         self.assertTrue((self.root/'_boosterAI/_partials/README.md').is_file())
         self.assertFalse((self.root/'_partials').exists())
         self.assertIn('`_partials/README.md`',(self.root/'_boosterAI/README.md').read_text())
-        self.assertFalse(b.schema_status(self.root)['source_changed'])
+        status_args = [
+            sys.executable, '-I', '-S', '-B', str(ROOT / 'scripts/booster.py'),
+            'schema-status', '--root', str(self.root),
+        ]
+
+        def assert_schema_status(source_changed):
+            expected = {
+                'source': source.name,
+                'source_changed': source_changed,
+                'working_copy_changed': False,
+                'acceptance_verified': False,
+            }
+            self.assertEqual(b.schema_status(self.root), expected)
+            status = subprocess.run(status_args, capture_output=True, text=True)
+            self.assertEqual(status.returncode, 0, status.stdout + status.stderr)
+            self.assertEqual(status.stderr, '')
+            self.assertEqual(json.loads(status.stdout), expected)
+
+        assert_schema_status(False)
         source.write_text('updated original')
-        self.assertTrue(b.schema_status(self.root)['source_changed'])
+        assert_schema_status(True)
         self.assertEqual((self.root/'_boosterAI/algorithm.md').read_text(),'# Existing schema\nunchanged source')
         with self.assertRaisesRegex(ValueError,'reconcile'):b.workspace_init(self.root, schema='existing-schema.md')
     def test_workspace_new_records_no_overwrite(self):

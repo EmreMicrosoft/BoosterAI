@@ -212,16 +212,18 @@ def parse_mermaid(document):
     # Keep statement boundaries limited to physical CR/LF line endings.
     _require(re.search(r"[\v\f\x1c-\x1e\x85\u2028\u2029]", diagram) is None,
              "unsupported Mermaid line separator")
-    lines = diagram.splitlines()
-    _require(lines and lines[0].strip() == "flowchart TD", "expected flowchart TD")
+    lines = iter(diagram.splitlines())
+    header = next(lines, "")
+    _require(len(header) <= _MAX_LINE_CHARS, "diagram line length limit exceeded")
+    _require(header.strip() == "flowchart TD", "expected flowchart TD")
     definitions = {}
     mentioned = set()
     edges = []
     edge_keys = set()
-    for line in lines[1:]:
+    for line in lines:
+        _require(len(line) <= _MAX_LINE_CHARS, "diagram line length limit exceeded")
         if not line.strip():
             continue
-        _require(len(line) <= _MAX_LINE_CHARS, "diagram line length limit exceeded")
         match = _EDGE.fullmatch(line)
         _require(match is not None, "unsupported Mermaid edge syntax")
         source = _endpoint(match.group("left"), definitions, mentioned)
