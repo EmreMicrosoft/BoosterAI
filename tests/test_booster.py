@@ -432,7 +432,7 @@ class WorkspaceDefaultCliTests(unittest.TestCase):
         (self.owned / 'algorithm.md').write_bytes(b'# Existing algorithm\n')
         (self.owned / 'README.md').write_bytes(b'# Existing workspace\n')
         (self.partials / 'README.md').write_bytes(b'# Existing partial index\n')
-        (self.root / 'PROJECT_RECORDS.md').write_bytes(b'# Existing root records\r\n')
+        self.root_record = self.root / 'PROJECT_RECORDS.md'
         self.nested_record = self.owned / 'PROJECT_RECORDS.md'
 
     def _ordinary_path(self, path):
@@ -464,6 +464,7 @@ class WorkspaceDefaultCliTests(unittest.TestCase):
         )
 
     def test_workspace_create_records_reuses_existing_root_record(self):
+        self.root_record.write_bytes(b'# Existing root records\r\n')
         before = self._snapshot()
         result = self._create_records()
         self.assertEqual(self._snapshot(), before)
@@ -477,7 +478,23 @@ class WorkspaceDefaultCliTests(unittest.TestCase):
         self.assertEqual(report['algorithm'], 'preserved_existing')
         self.assertFalse(self.nested_record.exists())
 
+    def test_workspace_create_records_reuses_existing_nested_record(self):
+        self.nested_record.write_bytes(b'# Existing nested records\n')
+        before = self._snapshot()
+        self.assertNotIn(self.root_record.relative_to(self.root), before)
+        result = self._create_records()
+        self.assertEqual(self._snapshot(), before)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, '')
+        report = json.loads(result.stdout)
+        self.assertEqual(report['project_record'], str(self.nested_record.relative_to(self.root)))
+        self.assertEqual(report['records_status'], 'selected')
+        self.assertFalse(report['created'])
+        self.assertTrue(report['preserved_existing'])
+        self.assertEqual(report['algorithm'], 'preserved_existing')
+
     def test_workspace_create_records_rejects_both_defaults_without_changes(self):
+        self.root_record.write_bytes(b'# Existing root records\r\n')
         self.nested_record.write_bytes(b'# Existing nested records\n')
         before = self._snapshot()
         result = self._create_records()

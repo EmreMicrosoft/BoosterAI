@@ -538,23 +538,42 @@ class TaskCardStdinTests(unittest.TestCase):
         self.assertIn("utf-8", report["error"])
         self.assertEqual(invalid.stderr, b"")
 
+    def _call_with_character_limit(self, mode, data, limit):
+        input_stream = SimpleNamespace(buffer=io.BytesIO(data))
+        output = io.StringIO()
+        with (patch.object(sys, "stdin", input_stream), patch.object(sys, "stdout", output),
+              patch.object(cards, "_MAX_STDIN", limit)):
+            result = cards.main([mode])
+        self.assertFalse(input_stream.buffer.closed)
+        return result, json.loads(output.getvalue())
+
     def test_input_limit_still_counts_decoded_characters(self):
         source = source_graph()
         source["revision"] = "caf\u00e9"
-        document = json.dumps(source, ensure_ascii=False)
-        for text, expected in ((document, 0), (document + " ", 2)):
-            with self.subTest(characters=len(text)):
-                input_stream = SimpleNamespace(buffer=io.BytesIO(text.encode("utf-8")))
-                output = io.StringIO()
-                with (patch.object(sys, "stdin", input_stream), patch.object(sys, "stdout", output),
-                      patch.object(cards, "_MAX_STDIN", len(document))):
-                    self.assertEqual(cards.main(["generate"]), expected)
-                self.assertFalse(input_stream.buffer.closed)
-                if expected:
-                    self.assertEqual(json.loads(output.getvalue()),
-                                     {"valid": False, "error": "input too large"})
-                else:
-                    self.assertEqual(json.loads(output.getvalue()), cards.generate_cards(source))
+        bundle = cards.generate_cards(source)
+        document = json.dumps({"source": source, "bundle": bundle}, ensure_ascii=False)
+        data = document.encode("utf-8")
+        self.assertGreater(len(data), len(document))
+        self.assertEqual(self._call_with_character_limit("validate", data, len(document)),
+                         (0, cards.validate_cards(source, bundle)))
+        self.assertEqual(self._call_with_character_limit("validate", data + b" ", len(document)),
+                         (2, {"valid": False, "error": "input too large"}))
+
+    def test_generate_requires_a_fitting_compact_validation_request(self):
+        source = source_graph()
+        source["revision"] = "caf\u00e9\ud800"
+        bundle = cards.generate_cards(source)
+        document = json.dumps({"source": source, "bundle": bundle},
+                              ensure_ascii=False, separators=(",", ":"))
+        characters = len(document.encode("utf-8", "backslashreplace").decode("utf-8"))
+        self.assertGreater(characters, len(document))
+        data = json.dumps(source).encode("utf-8")
+        self.assertLess(len(data), characters - 1)
+        self.assertEqual(self._call_with_character_limit("generate", data, characters),
+                         (0, bundle))
+        self.assertEqual(self._call_with_character_limit("generate", data, characters - 1),
+                         (2, {"valid": False, "error":
+                              "source and bundle exceed compact validation request limit"}))
 
 
 if __name__ == "__main__":

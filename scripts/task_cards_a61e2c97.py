@@ -334,6 +334,25 @@ def validate_cards(source, bundle):
             "acceptance_test_executed": False}
 
 
+def _validation_request_fits(source, bundle):
+    """Return whether the CLI can validate the generated bundle with its source.
+
+    Count the decoded characters of compact UTF-8 JSON incrementally. Escape
+    any isolated surrogate as JSON so it is representable in UTF-8. Whitespace
+    or extra escapes added by a caller still count toward the input limit.
+    Neither the source nor the bundle is modified.
+    """
+    encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
+    count = 0
+    for fragment in encoder.iterencode({"source": source, "bundle": bundle}):
+        if not fragment.isascii():
+            fragment = fragment.encode("utf-8", "backslashreplace").decode("utf-8")
+        count += len(fragment)
+        if count > _MAX_STDIN:
+            return False
+    return True
+
+
 def main(argv=None):
     """Handle a bounded JSON request through the real, non-executing CLI.
 
@@ -356,6 +375,8 @@ def main(argv=None):
         request = json.loads(raw, object_pairs_hook=_unique_object)
         if args.mode == "generate":
             result = generate_cards(request)
+            _require(_validation_request_fits(request, result),
+                     "source and bundle exceed compact validation request limit")
         else:
             _fields(request, {"source", "bundle"}, "validation request")
             result = validate_cards(request["source"], request["bundle"])
