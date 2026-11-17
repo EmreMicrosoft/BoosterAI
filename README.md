@@ -2,6 +2,11 @@
 
 A portable instruction skill for incremental, evidence-driven software delivery. It organizes work without pretending that more agents, a green build, or a status file constitute working software.
 
+The practices BoosterAI brings together are core building blocks of
+**Applied AI Engineering** and **Agentic Systems Architecture**. These
+disciplines focus on turning trained large AI models into reliable systems
+that work in the real world.
+
 ## Architecture and verification
 
 BoosterAI brings a skill and an engineering harness together in one portable
