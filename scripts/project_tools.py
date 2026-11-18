@@ -1156,7 +1156,7 @@ def main():
     register=sub.add_parser('register-helper');register.add_argument('--root',required=True);register.add_argument('--name',required=True);register.add_argument('--version',required=True);register.add_argument('--source',required=True);register.add_argument('--evidence',required=True);register.add_argument('--target',required=True);register.add_argument('--source-scope',choices=['workspace','project'],default='workspace');register.add_argument('--function-docs-reviewed',action='store_true')
     check = sub.add_parser('check-helper')
     check.add_argument('--root', required=True, action='append')
-    check.add_argument('--name', required=True)
+    check.add_argument('--name', required=True, action='append')
     check.add_argument('--version', required=True, action='append')
     archive=sub.add_parser('archive-example');archive.add_argument('--root',required=True);archive.add_argument('--source',required=True);archive.add_argument('--review',required=True)
     search = sub.add_parser('search-archive')
@@ -1203,8 +1203,10 @@ def main():
                 check.error('exactly one nonblank --root is required')
             if len(set(args.version)) != 1:
                 check.error('conflicting --version values')
+            if len(set(args.name)) != 1:
+                check.error('conflicting --name values')
             try:
-                result = helper_check(roots[0], args.name, args.version[0])
+                result = helper_check(roots[0], args.name[0], args.version[0])
             except FileNotFoundError:
                 raise ValueError('required helper file is missing') from None
         print(json.dumps(result,indent=2));return 0

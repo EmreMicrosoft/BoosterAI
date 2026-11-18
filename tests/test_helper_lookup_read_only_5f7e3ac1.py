@@ -205,6 +205,51 @@ class HelperLookupReadOnlyTests(unittest.TestCase):
         self.assertEqual(json.loads(stdout.getvalue()), report)
         self.assertEqual(stderr.getvalue(), "")
 
+    def test_cli_rejects_conflicting_names_before_helper_lookup(self):
+        root, version = "private-project-root", "1.2.3"
+        first, second = "first-private-name", "second-private-name"
+        cases = ((first, second), (second, first), ("", first), (first, ""))
+        for before, after in cases:
+            with self.subTest(names=(before, after)):
+                argv = ["project_tools.py", "check-helper", "--root", root,
+                        "--name", before, f"--name={after}", "--version", version]
+                with (
+                    patch.object(sys, "argv", argv),
+                    patch.object(PROJECT_TOOLS, "helper_check") as check,
+                    redirect_stdout(io.StringIO()) as stdout,
+                    redirect_stderr(io.StringIO()) as stderr,
+                    self.assertRaises(SystemExit) as error,
+                ):
+                    PROJECT_TOOLS.main()
+
+                check.assert_not_called()
+                self.assertEqual(error.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                output = stderr.getvalue()
+                self.assertEqual(
+                    output.splitlines()[-1],
+                    "project_tools.py check-helper: error: conflicting --name values",
+                )
+                for value in (root, first, second, version):
+                    self.assertNotIn(value, output)
+
+    def test_cli_forwards_identical_repeated_names_once(self):
+        root, name, version = " selected project ", "example-01", "01.0.0"
+        argv = ["project_tools.py", "check-helper", "--root", root,
+                "--name", name, f"--name={name}", "--version", version]
+        report = {"path": "helpers/example-01/01.0.0/example_3b7e41a9.py"}
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(PROJECT_TOOLS, "helper_check", return_value=report) as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(PROJECT_TOOLS.main(), 0)
+
+        check.assert_called_once_with(root, name, version)
+        self.assertEqual(json.loads(stdout.getvalue()), report)
+        self.assertEqual(stderr.getvalue(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
