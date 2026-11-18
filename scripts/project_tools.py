@@ -1199,7 +1199,10 @@ def main():
                 check.error('exactly one nonblank --root is required')
             if len(set(args.version)) != 1:
                 check.error('conflicting --version values')
-            result = helper_check(roots[0], args.name, args.version[0])
+            try:
+                result = helper_check(roots[0], args.name, args.version[0])
+            except FileNotFoundError:
+                raise ValueError('required helper file is missing') from None
         print(json.dumps(result,indent=2));return 0
     except (ValueError,OSError,KeyError,TypeError) as error:
         print(json.dumps({'error':str(error)}));return 1

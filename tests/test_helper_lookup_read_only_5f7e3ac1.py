@@ -1,6 +1,7 @@
 """Check the helper registry reader and workspace creation boundary."""
 
 from contextlib import redirect_stderr, redirect_stdout
+from errno import ENOENT
 import importlib.util
 import io
 import json
@@ -103,6 +104,29 @@ class HelperLookupReadOnlyTests(unittest.TestCase):
         check.assert_called_once_with(root, "example", "1.0.0")
         self.assertEqual(json.loads(stdout.getvalue()), report)
         self.assertEqual(stderr.getvalue(), "")
+
+    def test_cli_reports_missing_helper_file_without_path(self):
+        root, name, version = " selected project ", "example", "1.0.0"
+        argv = ["project_tools.py", "check-helper", "--root", root,
+                "--name", name, "--version", version]
+        path_sentinel = "synthetic-private-helper-path"
+        missing_path = str(Path("synthetic-project") / path_sentinel / "metadata.json")
+        error = FileNotFoundError(ENOENT, "No such file or directory", missing_path)
+
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(PROJECT_TOOLS, "helper_check", side_effect=error) as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(PROJECT_TOOLS.main(), 1)
+
+        check.assert_called_once_with(root, name, version)
+        output = stdout.getvalue()
+        self.assertEqual(json.loads(output), {"error": "required helper file is missing"})
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertNotIn(missing_path, output)
+        self.assertNotIn(path_sentinel, output)
 
     def test_cli_rejects_invalid_roots_before_helper_lookup(self):
         first, second = "first-private-root", "second-private-root"
