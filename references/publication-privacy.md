@@ -23,3 +23,8 @@ For a package release, review the final built artifacts and the exact staged mar
 For either release, review file paths and contents, commit messages and metadata in every commit reachable from each proposed ref. Verify the actual commit graph and remote refs using supported Git and host tools. Review the updated scope if the proposed content, parent or refs change. When a clean Git history is required, verify parentage and check the destination for earlier branches, tags and commits.
 
 Do not rewrite history, publish or delete anything unless the actual owner has authorized that exact scope and all applicable safety and action-time approval boundaries are satisfied.
+
+For each authorized BoosterAI release, record local test results,
+observed real-target behavior, the publication outcome, and
+post-publication readback of the exact remote ref and commit as
+separate observations in the existing project evidence record.
