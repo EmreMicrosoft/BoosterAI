@@ -378,6 +378,39 @@ def schema_status(root):
     working = checked(root, '_boosterAI/algorithm.md')
     return {'source': data['source'], 'source_changed': digest(source) != data.get('source_sha256'), 'working_copy_changed': digest(working) != data.get('source_sha256'), 'acceptance_verified': False}
 
+def plain_link_targets(text, target_pattern):
+    """Scan plain inline routes outside comments and ordinary code examples.
+
+    Recognize top-level fences and same-line backtick spans. Keep spans
+    separate so removing a comment or example cannot create a new route.
+    """
+    markup = re.finditer(
+        r"""
+        \\[\\`<]  # An escaped character cannot open a comment or code span.
+        | (?P<skip>
+            ^[ ]{0,3}  # A fence must start on its own source line.
+            (?P<fence>(?P<backtick_fence>`{3,})|~{3,})
+            (?(backtick_fence)[^`\r\n]*|[^\r\n]*)  # Only tildes allow backticks in fence info.
+            (?:\r?\n|\Z)
+            .*?(?:^[ ]{0,3}(?P=fence)(?(backtick_fence)`*|~*)[ \t]*(?:\r?\n|\Z)|\Z)
+            | (?P<ticks>`+)(?!`)[^\r\n]*?(?<!`)(?P=ticks)(?!`)
+            | <!--.*?(?:-->|\Z)
+        )
+        | `+  # An unmatched run remains ordinary text.
+        """,
+        text,
+        flags=re.DOTALL | re.MULTILINE | re.VERBOSE,
+    )
+    targets = []
+    start = 0
+    for token in markup:
+        if token.group('skip') is not None:
+            targets.extend(re.findall(target_pattern, text[start:token.start()]))
+            start = token.end()
+    targets.extend(re.findall(target_pattern, text[start:]))
+    return targets
+
+
 def check_codex_entry(text, expected_fields):
     """Check the stub metadata and its single plain inline route to the root skill."""
     if not text.startswith('---\n'):
@@ -394,7 +427,7 @@ def check_codex_entry(text, expected_fields):
     if fields != expected_fields:
         raise ValueError('Codex registration metadata differs from canonical skill')
     canonical_link = '../../../SKILL.md'
-    links = re.findall(r'\]\(([^)\s]+)\)', parts[2])
+    links = plain_link_targets(parts[2], r'\]\(([^)\s]+)\)')
     require(canonical_link in links, 'Codex registration is missing its canonical skill link')
     canonical_target = Path(canonical_link)
     canonical_routes = sum(
@@ -423,7 +456,7 @@ def self_check(root):
     require(fields.get('name') == 'booster-ai', 'invalid skill name')
     require(0 < len(fields.get('description', '')) <= 1024, 'invalid description')
     require('<' not in fields['description'] and '>' not in fields['description'], 'invalid description markup')
-    resources = re.findall(r'\]\((references/[^)]+)\)', parts[2])
+    resources = plain_link_targets(parts[2], r'\]\((references/[^)]+)\)')
     require(resources, 'no bundled references')
     targets = set()
     for resource in resources:

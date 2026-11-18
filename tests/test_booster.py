@@ -101,10 +101,18 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
         return status, json.loads(stdout.getvalue())
 
     def _check_bundled_links(self, *targets):
+        links = '\n'.join(f'[Workflow]({target})' for target in targets)
+        return self._check_bundled_body(links)
+
+    def _check_bundled_body(self, body):
         document = ROOT / 'SKILL.md'
         _, frontmatter, _ = document.read_text(encoding='utf-8').split('---\n', 2)
-        links = '\n'.join(f'[Workflow]({target})' for target in targets)
-        return self._check_with_text(document, f'---\n{frontmatter}---\n\n{links}\n')
+        return self._check_with_text(document, f'---\n{frontmatter}---\n\n{body}\n')
+
+    def _check_registration_body(self, body):
+        document = ROOT / '.agents/skills/booster-ai/SKILL.md'
+        _, frontmatter, _ = document.read_text(encoding='utf-8').split('---\n', 2)
+        return self._check_with_text(document, f'---\n{frontmatter}---\n\n{body}\n')
 
     def test_distinct_bundled_reference_targets_succeed(self):
         targets = ['references/operating-algorithm.md', 'references/project-workspace.md']
@@ -137,6 +145,119 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                 status, report = self._check_with_text(document, text + f'\n[Repeat]({repeated})\n')
                 self.assertEqual(status, 1)
                 self.assertEqual(report, {'error': 'Codex registration repeats its canonical skill link'})
+
+    def test_commented_bundled_reference_cannot_supply_required_route(self):
+        target = 'references/operating-algorithm.md'
+        link = f'[Workflow]({target})'
+        bodies = (
+            f'<!-- {link} -->',
+            f'<!--\n{link}\n-->',
+            f'[Workflow]<!-- boundary -->({target})',
+            '[Workflow](references/operating-<!-- boundary -->algorithm.md)',
+        )
+        for body in bodies:
+            with self.subTest(body=body):
+                status, report = self._check_bundled_body(body)
+                self.assertEqual(status, 1)
+                self.assertEqual(report, {'error': 'no bundled references'})
+
+    def test_commented_bundled_links_do_not_change_valid_report(self):
+        target = 'references/operating-algorithm.md'
+        expected = self._check_bundled_links(target)
+        self.assertEqual(expected[0], 0)
+        self.assertEqual(expected[1]['references_checked'], [target])
+        body = (
+            f'[Workflow]({target})\n'
+            '<!--\n'
+            f'[Duplicate]({target})\n'
+            '[Missing](references/nonexistent-commented-workflow.md)\n'
+            '-->'
+        )
+        self.assertEqual(self._check_bundled_body(body), expected)
+
+    def test_commented_registration_link_cannot_supply_canonical_route(self):
+        target = '../../../SKILL.md'
+        link = f'[Canonical]({target})'
+        bodies = (
+            f'<!-- {link} -->',
+            f'<!--\n{link}\n-->',
+            f'<!--\n{link}',
+            f'[Canonical]<!-- boundary -->({target})',
+        )
+        for body in bodies:
+            with self.subTest(body=body):
+                status, report = self._check_registration_body(body)
+                self.assertEqual(status, 1)
+                self.assertEqual(
+                    report, {'error': 'Codex registration is missing its canonical skill link'},
+                )
+
+    def test_commented_registration_duplicate_does_not_change_valid_report(self):
+        document = ROOT / '.agents/skills/booster-ai/SKILL.md'
+        text = document.read_text(encoding='utf-8')
+        expected = self._check_with_text(document, text)
+        self.assertEqual(expected[0], 0)
+        self.assertEqual(expected[1]['codex_repo_registration'], 'present_valid')
+        text += '\n<!-- [Duplicate](../../.././SKILL.md) -->\n'
+        self.assertEqual(self._check_with_text(document, text), expected)
+
+    def test_literal_examples_preserve_visible_routes(self):
+        examples = (
+            ('escaped opener', r'\<!-- '),
+            ('inline code', '`<!--` '),
+            ('backtick fence', '```markdown\n<!--\n```\n\n'),
+            ('tilde fence', '~~~markdown\n<!--\n~~~\n\n'),
+            ('tilde fence with backtick info', '~~~markdown `example`\n<!--\n~~~\n\n'),
+        )
+        routes = (
+            ('bundled', self._check_bundled_body, '[Workflow](references/operating-algorithm.md)'),
+            ('registration', self._check_registration_body, '[Canonical](../../../SKILL.md)'),
+        )
+        for route, check, link in routes:
+            expected = check(link)
+            self.assertEqual(expected[0], 0)
+            for example, prefix in examples:
+                with self.subTest(route=route, example=example):
+                    self.assertEqual(check(prefix + link), expected)
+            with self.subTest(route=route, example='escaped first backtick'):
+                body = rf'\``{link}` {link}'
+                self.assertEqual(check(body), expected)
+
+    def test_line_start_triple_backtick_spans_do_not_mask_visible_routes(self):
+        cases = (
+            (
+                'bundled',
+                self._check_bundled_body,
+                '```<!-- [Draft](references/operating-algorithm.md)```\n',
+                '[Guide](references/records-and-continuity.md)',
+            ),
+            (
+                'registration',
+                self._check_registration_body,
+                '```[Draft](../../../SKILL.md)``` ',
+                '[Canonical](../../../SKILL.md)',
+            ),
+        )
+        for route, check, prefix, link in cases:
+            with self.subTest(route=route):
+                expected = check(link)
+                self.assertEqual(expected[0], 0)
+                self.assertEqual(check(prefix + link), expected)
+
+    def test_code_examples_cannot_supply_canonical_registration_route(self):
+        link = '[Canonical](../../../SKILL.md)'
+        examples = (
+            ('inline code', f'`{link}`'),
+            ('backtick fence', f'```markdown\n{link}\n```'),
+            ('tilde fence', f'~~~markdown\n{link}\n~~~'),
+        )
+        for example, body in examples:
+            with self.subTest(example=example):
+                status, report = self._check_registration_body(body)
+                self.assertEqual(status, 1)
+                self.assertEqual(
+                    report, {'error': 'Codex registration is missing its canonical skill link'},
+                )
 
 
 class SelfCheckRootCliTests(unittest.TestCase):
