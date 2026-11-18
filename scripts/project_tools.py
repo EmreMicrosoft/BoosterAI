@@ -1154,7 +1154,10 @@ def main():
     sub=parser.add_subparsers(dest='command',required=True)
     log=sub.add_parser('log');log.add_argument('--root',required=True);log.add_argument('--summary',required=True);log.add_argument('--status',choices=['work','verified','blocked'],default='work');log.add_argument('--evidence')
     register=sub.add_parser('register-helper');register.add_argument('--root',required=True);register.add_argument('--name',required=True);register.add_argument('--version',required=True);register.add_argument('--source',required=True);register.add_argument('--evidence',required=True);register.add_argument('--target',required=True);register.add_argument('--source-scope',choices=['workspace','project'],default='workspace');register.add_argument('--function-docs-reviewed',action='store_true')
-    check=sub.add_parser('check-helper');check.add_argument('--root',required=True);check.add_argument('--name',required=True);check.add_argument('--version',required=True)
+    check = sub.add_parser('check-helper')
+    check.add_argument('--root', required=True, action='append')
+    check.add_argument('--name', required=True)
+    check.add_argument('--version', required=True)
     archive=sub.add_parser('archive-example');archive.add_argument('--root',required=True);archive.add_argument('--source',required=True);archive.add_argument('--review',required=True)
     search = sub.add_parser('search-archive')
     search.add_argument('--root', required=True, action='append')
@@ -1190,7 +1193,11 @@ def main():
             result = search_project_index(args.root[0], args.query, args.kind)
         elif args.command=='log':result=log_event(args.root,args.summary,args.status,args.evidence)
         elif args.command=='register-helper':result=register_helper(args.root,args.name,args.version,args.source,args.evidence,args.target,args.source_scope,args.function_docs_reviewed)
-        else:result=helper_check(args.root,args.name,args.version)
+        else:
+            roots = args.root
+            if len(roots) != 1 or not roots[0].strip():
+                check.error('exactly one nonblank --root is required')
+            result = helper_check(roots[0], args.name, args.version)
         print(json.dumps(result,indent=2));return 0
     except (ValueError,OSError,KeyError,TypeError) as error:
         print(json.dumps({'error':str(error)}));return 1

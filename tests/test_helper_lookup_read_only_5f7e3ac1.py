@@ -1,8 +1,11 @@
 """Check the helper registry reader and workspace creation boundary."""
 
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
+import io
 import json
 from pathlib import Path
+import sys
 import unittest
 from unittest.mock import Mock, call, patch
 
@@ -83,6 +86,56 @@ class HelperLookupReadOnlyTests(unittest.TestCase):
         self.assertIs(result, records)
         safe.assert_called_once_with(ROOT, "_boosterAI")
         records.mkdir.assert_called_once_with(exist_ok=True)
+
+    def test_cli_forwards_nonblank_root_unchanged(self):
+        root = " selected project "
+        argv = ["project_tools.py", "check-helper", "--root", root,
+                "--name", "example", "--version", "1.0.0"]
+        report = {"path": "helpers/example/1.0.0/example_3b7e41a9.py"}
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(PROJECT_TOOLS, "helper_check", return_value=report) as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(PROJECT_TOOLS.main(), 0)
+
+        check.assert_called_once_with(root, "example", "1.0.0")
+        self.assertEqual(json.loads(stdout.getvalue()), report)
+        self.assertEqual(stderr.getvalue(), "")
+
+    def test_cli_rejects_invalid_roots_before_helper_lookup(self):
+        first, second = "first-private-root", "second-private-root"
+        cases = (
+            ["--root="],
+            ["--root= "],
+            ["--root=\t"],
+            ["--root", first, f"--root={first}"],
+            ["--root", first, "--root", second],
+            ["--root", second, "--root", first],
+        )
+        for roots in cases:
+            argv = ["project_tools.py", "check-helper", *roots,
+                    "--name", "example", "--version", "1.0.0"]
+            with (
+                self.subTest(roots=roots),
+                patch.object(sys, "argv", argv),
+                patch.object(PROJECT_TOOLS, "helper_check") as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
+                PROJECT_TOOLS.main()
+
+            check.assert_not_called()
+            self.assertEqual(error.exception.code, 2)
+            self.assertEqual(stdout.getvalue(), "")
+            output = stderr.getvalue()
+            self.assertTrue(output.splitlines()[-1].endswith(
+                "check-helper: error: exactly one nonblank --root is required"
+            ), output)
+            self.assertNotIn(first, output)
+            self.assertNotIn(second, output)
 
 
 if __name__ == "__main__":
