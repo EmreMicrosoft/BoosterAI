@@ -380,6 +380,48 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                 body = f'[Read `literal\n] inside code` here]({target})'
                 self.assertEqual(check(body), expected)
 
+    def test_inline_route_labels_stay_within_atx_heading_boundaries(self):
+        routes = (
+            (self._check_bundled_body, 'references/operating-algorithm.md', 'no bundled references'),
+            (
+                self._check_registration_body,
+                '../../../SKILL.md',
+                'Codex registration is missing its canonical skill link',
+            ),
+        )
+        for check, target, missing_error in routes:
+            visible = f'[Guide]({target})'
+            expected = check(visible)
+            self.assertEqual(expected[0], 0)
+            suffix = f'continues]({target})'
+            crossed_labels = (
+                ('paragraph to heading', ('[Paragraph', f'# {suffix}')),
+                ('heading to paragraph', ('## [Heading', suffix)),
+                ('adjacent headings', ('## [First heading', f'### {suffix}')),
+                ('indented heading with tab', ('[Paragraph', f'   ######\t{suffix}')),
+                ('empty heading', ('[Paragraph', '######', suffix)),
+                ('inline comment crosses heading', ('[Paragraph <!-- note', f'# heading --> {suffix}')),
+            )
+            valid_labels = (
+                ('heading', (f'# {visible}',)),
+                ('heading with tab', (f'##\t{visible}',)),
+                ('indented heading', (f'   ###### {visible} ###',)),
+                ('paragraph soft break', ('[Paragraph', suffix)),
+                ('heading-like paragraph text', ('[Paragraph', f'#tag {suffix}')),
+                ('inline comment in paragraph', ('[Paragraph <!-- note', f'ends here --> {suffix}')),
+                ('block comment across heading', ('<!-- note', f'# {visible}', '-->', visible)),
+                ('unclosed inline comment before heading', (f'Intro <!-- {visible}', '# Heading')),
+            )
+            for newline in ('\n', '\r\n'):
+                for case, lines in crossed_labels:
+                    with self.subTest(target=target, newline=newline, case=case, visible_link=False):
+                        self.assertEqual(check(newline.join(lines)), (1, {'error': missing_error}))
+                    with self.subTest(target=target, newline=newline, case=case, visible_link=True):
+                        self.assertEqual(check(newline.join((*lines, visible))), expected)
+                for case, lines in valid_labels:
+                    with self.subTest(target=target, newline=newline, case=case):
+                        self.assertEqual(check(newline.join(lines)), expected)
+
 
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""

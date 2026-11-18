@@ -382,8 +382,8 @@ def plain_link_targets(text, target_pattern):
     """Collect complete plain inline links with visible, balanced label brackets.
 
     Treat inline markup as opaque label content and keep it out of destinations.
-    Blank lines, fences and block comments end open labels. Apply the existing
-    caller-specific path pattern only after recognizing a supported link.
+    Labels cannot cross blank lines, ATX headings, fences or block comments.
+    Apply the caller-specific path pattern after recognizing a supported link.
     Backtick spans may cross soft line breaks up to a recognized block start.
     The source profile does not normalize Markdown container prefixes.
     """
@@ -412,35 +412,45 @@ def plain_link_targets(text, target_pattern):
                 )
             )*?
             (?<!`)(?P=ticks)(?!`)
-            | (?P<block_comment>^[ ]{0,3})?<!--.*?(?:-->|\Z)
+            | (?P<block_comment>^[ ]{0,3})<!--.*?(?:-->|\Z)
+            | <!--  # An inline comment cannot span a following ATX heading.
+            (?:[^\r\n]|\r?\n(?![ ]{0,3}\#{1,6}(?=[ \t]|\r?$)))*?
+            (?:-->|\Z)
         )
         | `+  # An unmatched run remains ordinary text.
         """,
         flags=re.DOTALL | re.MULTILINE | re.VERBOSE,
     )
 
-    def inline_tokens():
-        # Heading content keeps its inline markup on a single source line.
-        for token in markup.finditer(text):
-            if token.group('heading_text') is None:
-                yield token
-            else:
-                yield from markup.finditer(text, *token.span('heading_text'))
-
     spans = []
     start = 0
     paragraph_break = r'\r?\n[ \t]*\r?\n'
-    for token in inline_tokens():
+    block_break = '\0\n\n\0'
+
+    def append_opaque(token):
+        nonlocal start
         escape = token.group('escape')
         if token.group('skip') is None and (escape is None or escape[-1] not in '[]!'):
-            continue
+            return
         spans.append(text[start:token.start()])
         if (token.group('fence') is not None or token.group('block_comment') is not None
                 or re.search(paragraph_break, token.group())):
-            spans.append('\0\n\n\0')
+            spans.append(block_break)
         else:
             # Opaque content keeps label brackets apart from any destination.
             spans.append('\0')
+        start = token.end()
+
+    for token in markup.finditer(text):
+        if token.group('heading_text') is None:
+            append_opaque(token)
+            continue
+        # Scan heading inline content in isolation and close labels on both sides.
+        spans.extend((text[start:token.start()], block_break))
+        start = token.start('heading_text')
+        for inline in markup.finditer(text, start, token.end()):
+            append_opaque(inline)
+        spans.extend((text[start:token.end()], block_break))
         start = token.end()
     spans.append(text[start:])
     visible = ''.join(spans)
