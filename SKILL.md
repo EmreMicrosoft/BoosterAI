@@ -108,14 +108,23 @@ Follow [user delivery](references/user-delivery.md) when a task needs a permitte
 If an image is unreadable or its text is unclear, use the
 [image-reading procedure](references/image-reading-procedure.md) to work through its authorized methods and report what you verified.
 
-## Hygiene and delivery
+## Closeout and owned cleanup
 
-At task completion, apply the functional-partials delivery checks to every example created or saved. Verify the file exists and give its purpose and observed test result. Use a supported local link, or the exact absolute path in the authorized local audience when a link is unavailable.
+At task completion, apply the functional-partials delivery checks to every
+example created or saved. Use the user-delivery workflow to report the verified
+result, any concrete blocker and the next action. Notify only for meaningful
+results, new actionable blockers, unavailable skills or decisions. Claim
+completion only with real evidence for all current acceptance criteria.
+A skill alone cannot guarantee attention, uninterrupted execution, background waking or eventual success.
 
-Read [owned cleanup](references/owned-cleanup.md) before producing scratch, resuming interrupted work, or reviewing an owned disposable set. Apply the owner-selected project scratch path to process temp and caches when supplied.
+Read [owned cleanup](references/owned-cleanup.md) before producing scratch,
+resuming interrupted work or reviewing an owned disposable set. Apply any
+owner-selected project scratch path to process temp and caches. Use `gc-plan`
+and `gc-apply` only under that workflow with a deliberately maintained scratch
+manifest.
 
-Report briefly: **verified behavior / concrete blocker / next action**. Notify on meaningful results, new actionable blockers, unavailable skills or decisions only; do not spam unchanged checks. Claim completion only when all current acceptance criteria have real evidence. A skill alone cannot guarantee attention, uninterrupted execution, background waking or eventual success.
-
-Run `python scripts/booster.py self-check` for the bundled, dependency-free package check. This validates this package contract, not agent discovery or behavioral compliance.
-
-Optional helper: `python scripts/booster.py validate PLAN.json` checks the small plan contract described in the operating reference. It does not execute tasks, authenticate evidence or replace existing project records. `gc-plan` and `gc-apply` operate only on a deliberately maintained scratch manifest; see cleanup reference before use.
+Run `python scripts/booster.py self-check` for the bundled, dependency-free
+package contract. Use separate evidence for agent discovery and behavior.
+Use `python scripts/booster.py validate PLAN.json` for optional read-only
+checks of plan structure and evidence fields. Follow the operating algorithm
+to verify the evidence itself and keep the existing project record.
