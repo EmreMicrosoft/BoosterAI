@@ -78,6 +78,39 @@ class PlanTests(unittest.TestCase):
         p=plan();p['nodes'][0]['status']='report_ready'
         with self.assertRaises(ValueError):b.validate(p)
 
+    def test_validate_cli_rejects_nonstandard_json_number_literals(self):
+        plan_path = ROOT / 'virtual-plan.json'
+        original_read_text = Path.read_text
+        plan_prefix = json.dumps(plan())[:-1] + ', "metadata": '
+
+        def validate_metadata(metadata):
+            reads = []
+
+            def read_text(path, encoding=None, errors=None):
+                if path != plan_path:
+                    return original_read_text(path, encoding=encoding, errors=errors)
+                reads.append(path)
+                self.assertEqual(encoding, 'utf-8-sig')
+                self.assertIn(errors, (None, 'strict'))
+                return plan_prefix + metadata + '}'
+
+            with (patch.object(sys, 'argv', ['booster.py', 'validate', str(plan_path)]),
+                  patch.object(Path, 'read_text', read_text),
+                  redirect_stdout(io.StringIO()) as stdout):
+                status = b.main()
+            self.assertEqual(reads, [plan_path])
+            return status, json.loads(stdout.getvalue())
+
+        for literal in ('NaN', 'Infinity', '-Infinity'):
+            for metadata in (literal, '{"values": [' + literal + ']}'):
+                with self.subTest(metadata=metadata):
+                    self.assertEqual(validate_metadata(metadata), (1, {'error': 'non-finite JSON number'}))
+
+        finite = '{"values": [17, -2.25, 1e-12, "NaN", "Infinity", "-Infinity"]}'
+        self.assertEqual(validate_metadata(finite), (0, {'valid': True, 'ready': ['a'], 'evidence_authenticated': False}))
+        duplicate = r'{"value": 1, "v\u0061lue": 2}'
+        self.assertEqual(validate_metadata(duplicate), (1, {'error': 'duplicate JSON object key'}))
+
 class SelfCheckDuplicateRoutingTests(unittest.TestCase):
     """Exercise the actual source checker without a workspace fixture."""
 

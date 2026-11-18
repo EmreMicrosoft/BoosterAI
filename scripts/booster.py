@@ -31,6 +31,11 @@ def unique_json_object(pairs):
     return result
 
 
+def reject_json_constant(_value):
+    """Reject a bare nonstandard number literal during plan JSON decoding."""
+    raise ValueError('non-finite JSON number')
+
+
 def instant(value):
     require(isinstance(value, str), 'timestamp must be string')
     result = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
@@ -667,7 +672,8 @@ def main():
             result = self_check(root)
         elif args.command == 'validate':
             result = validate(json.loads(Path(args.plan).read_text(encoding='utf-8-sig'),
-                                         object_pairs_hook=unique_json_object))
+                                         object_pairs_hook=unique_json_object,
+                                         parse_constant=reject_json_constant))
         else:
             result = collect(args.root, args.manifest, args.owner, args.command == 'gc-apply')
         print(json.dumps(result, indent=2))
