@@ -35,23 +35,11 @@ When available and authorized, assign separate subagents in parallel to research
 
 ## Runtime version defaults
 
-For new Python work, select Python 3.12 or newer; for new .NET work, select .NET
-SDK 10 or newer. An explicit user-requested version takes precedence. Inspect
-existing project constraints before changing an established runtime; do not
-silently upgrade, install, retarget or alter global configuration. If no suitable
-authorized runtime is available, report that dependency and continue independent
-work. These defaults concern product runtime selection, not the older versions
-retained in BoosterAI helper compatibility tests.
-
-Use `python -I -S -B scripts/booster.py runtime-check --language python` to check
-the interpreter actually executing the helper. For .NET, first obtain the
-selected **SDK** version through the authorized host, then check it with
-`runtime-check --language dotnet --observed-version VERSION`. This reported
-version is not authenticated by the helper and is not a .NET runtime version.
-Pass `--requested-version VERSION` only when the user explicitly requested that
-version; a major.minor request matches that series and a full version matches
-exactly. The helper checks stable numeric versions and never installs or changes
-runtimes. A passing version check is not product acceptance or Codex integration.
+For new Python work, use Python 3.12 or newer. For new .NET work, use .NET SDK
+10 or newer. Honor explicit user version requests and established project
+constraints. See the bundled [engineering procedures](references/engineering-procedures.md)
+for runtime selection and verification, diagnosis, code review, testing and
+task division.
 
 ## Owned workspace
 
@@ -95,7 +83,7 @@ At each natural checkpoint ask: What actual product behavior improved? What exac
 
 Keep the authorized product's critical path moving. Record nonblocking investigations, polish and other deferrable details in the project's `_boosterAI/deferred.md` and return to the next product slice. A real security refusal, mandatory approval or missing access still stops the affected action; do not evade it. Continue independent authorized work and report the precise blocker.
 
-Use the bundled [engineering procedures](references/engineering-procedures.md) for diagnosis, code review, testing and task division. BoosterAI requires no other skill, third-party Python package, external service or global installation. The host agent and the target product environment remain necessary; these instructions cannot manufacture their tools or permissions. Track time-to-verified-slice and rework, not agent count. External advice is a hypothesis until reproduced under matching conditions.
+BoosterAI requires no other skill, third-party Python package, external service or global installation. The host agent and the target product environment remain necessary; these instructions cannot manufacture their tools or permissions. Track time-to-verified-slice and rework, not agent count. External advice is a hypothesis until reproduced under matching conditions.
 
 ## Daily records and repeated work
 
