@@ -508,7 +508,7 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('validate').add_argument('plan')
     runtime = sub.add_parser('runtime-check')
-    runtime.add_argument('--language', choices=('python', 'dotnet'), required=True)
+    runtime.add_argument('--language', choices=('python', 'dotnet'), required=True, action='append')
     runtime.add_argument('--observed-version', action='append')
     runtime.add_argument('--requested-version', action='append',
                          help='Only for the user\'s explicit version request')
@@ -538,7 +538,10 @@ def main():
             if len(set(observed_versions)) > 1:
                 runtime.error('conflicting --observed-version values')
             observed_version = observed_versions[0] if observed_versions else None
-            result = runtime_check(args.language, observed_version, requested_version)
+            languages = args.language
+            if len(set(languages)) > 1:
+                runtime.error('conflicting --language values')
+            result = runtime_check(languages[0], observed_version, requested_version)
         elif args.command == 'schema-status':
             roots = args.root
             if len(roots) != 1 or not roots[0].strip():

@@ -18,6 +18,45 @@ RUNTIME_ARGV = ["booster.py", "runtime-check", "--language", "python"]
 
 
 class RuntimeRequestConflictTests(unittest.TestCase):
+    def test_distinct_languages_fail_before_runtime_verification(self):
+        for first, second in (("python", "dotnet"), ("dotnet", "python")):
+            argv = ["booster.py", "runtime-check", "--language", first, f"--language={second}"]
+            with (
+                self.subTest(first=first, second=second),
+                patch.object(sys, "argv", argv),
+                patch.object(BOOSTER, "runtime_check") as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
+                BOOSTER.main()
+            check.assert_not_called()
+            self.assertEqual(error.exception.code, 2)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertEqual(
+                stderr.getvalue().splitlines()[-1],
+                "booster.py runtime-check: error: conflicting --language values",
+            )
+
+    def test_single_and_identical_languages_reach_runtime_verification_once(self):
+        report = {"valid": True}
+        for language, observed in (("python", "3.12.7"), ("dotnet", "10.0.100")):
+            for repeated in ((), (f"--language={language}",)):
+                argv = ["booster.py", "runtime-check", "--language", language,
+                        *repeated, "--observed-version", observed]
+                with (
+                    self.subTest(language=language, repeated=repeated),
+                    patch.object(sys, "argv", argv),
+                    patch.object(BOOSTER, "runtime_check", return_value=report) as check,
+                    redirect_stdout(io.StringIO()) as stdout,
+                    redirect_stderr(io.StringIO()) as stderr,
+                ):
+                    status = BOOSTER.main()
+                check.assert_called_once_with(language, observed, None)
+                self.assertEqual(status, 0)
+                self.assertEqual(json.loads(stdout.getvalue()), report)
+                self.assertEqual(stderr.getvalue(), "")
+
     def test_distinct_versions_fail_before_runtime_verification(self):
         for first, second in (("3.11", "3.12.0"), ("3.12.0", "3.11")):
             argv = [*RUNTIME_ARGV, "--requested-version", first, f"--requested-version={second}"]
