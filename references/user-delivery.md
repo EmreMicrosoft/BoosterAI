@@ -37,6 +37,9 @@ host cannot provide an openable link, give the full absolute path and state
 the limitation in the authorized local audience. Keep private paths out of
 public output.
 
+For a Codex file panel request, use the calling task by default. Specify
+another task only at the user's request.
+
 Treat file existence, link delivery and visible opening as distinct
 observations. Check the supported host view when acceptance requires visible
 behavior and access is available. A queued panel request establishes submission.
