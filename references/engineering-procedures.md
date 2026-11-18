@@ -23,6 +23,12 @@ Choose the smallest coherent behavior that can be invoked and observed. Keep ext
 
 Use the explicitly requested language first, the existing module language next, and Python as the fallback.
 
+Keep production functions small, separate, and reusable. Give new source
+files short, descriptive names with a stable unique suffix where the
+language and build permit it. Preserve established module paths and
+interfaces. Document each function's purpose, inputs, result, and
+important limits in a docstring or immediately preceding comment.
+
 For new Python work, select Python 3.12 or newer. For new .NET work, select .NET SDK 10 or newer. An explicit version request takes precedence. Check the existing project's constraints before changing an established runtime.
 
 Use `python -I -S -B scripts/booster.py runtime-check --language python` to check the interpreter actually executing the helper. For .NET, supply the SDK version observed through the authorized host with `runtime-check --language dotnet --observed-version VERSION`. The helper labels the reported SDK version as an unverified observation. Use `--requested-version VERSION` only when the user explicitly requested that version. A major.minor request matches its series and a full version matches exactly.
