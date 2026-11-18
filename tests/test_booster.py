@@ -183,6 +183,54 @@ class SelfCheckRootCliTests(unittest.TestCase):
                 diagnostics.add(diagnostic)
         self.assertLessEqual(len(diagnostics), 1)
 
+class SchemaStatusRootCliTests(unittest.TestCase):
+    """Exercise schema-status argument selection without a workspace fixture."""
+
+    def test_single_root_reaches_schema_status_unchanged(self):
+        root = ' selected project '
+        report = {'acceptance_verified': False}
+        with (
+            patch.object(sys, 'argv', ['booster.py', 'schema-status', '--root', root]),
+            patch.object(b, 'schema_status', return_value=report) as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(b.main(), 0)
+
+        check.assert_called_once_with(root)
+        self.assertEqual(json.loads(stdout.getvalue()), report)
+        self.assertEqual(stderr.getvalue(), '')
+
+    def test_invalid_roots_stop_before_schema_status(self):
+        first, second = 'first-private-root', 'second-private-root'
+        cases = (
+            [],
+            ['--root='],
+            ['--root= '],
+            ['--root', first, f'--root={first}'],
+            ['--root', first, '--root', second],
+            ['--root', second, '--root', first],
+        )
+        for options in cases:
+            with (
+                self.subTest(options=options),
+                patch.object(sys, 'argv', ['booster.py', 'schema-status', *options]),
+                patch.object(b, 'schema_status') as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    b.main()
+                self.assertEqual(error.exception.code, 2)
+                check.assert_not_called()
+                self.assertEqual(stdout.getvalue(), '')
+                diagnostic = ('--root may be supplied only once with a nonempty value'
+                              if options else 'the following arguments are required: --root')
+                self.assertEqual(stderr.getvalue(),
+                                 'usage: booster.py schema-status [-h] --root ROOT\n'
+                                 f'booster.py schema-status: error: {diagnostic}\n')
+
+
 class CollectorTests(unittest.TestCase):
     def setUp(self):
         self.root=workspace(self)

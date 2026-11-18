@@ -513,7 +513,8 @@ def main():
     runtime.add_argument('--requested-version', action='append',
                          help='Only for the user\'s explicit version request')
     sub.add_parser('partials-init').add_argument('--root', required=True)
-    sub.add_parser('schema-status').add_argument('--root', required=True)
+    schema_status_parser = sub.add_parser('schema-status')
+    schema_status_parser.add_argument('--root', required=True, action='append')
     workspace = sub.add_parser('workspace-init')
     workspace.add_argument('--root', required=True)
     workspace.add_argument('--records-existing', action='append')
@@ -539,7 +540,10 @@ def main():
             observed_version = observed_versions[0] if observed_versions else None
             result = runtime_check(args.language, observed_version, requested_version)
         elif args.command == 'schema-status':
-            result = schema_status(args.root)
+            roots = args.root
+            if len(roots) != 1 or not roots[0].strip():
+                schema_status_parser.error('--root may be supplied only once with a nonempty value')
+            result = schema_status(roots[0])
         elif args.command == 'workspace-init':
             selectors = args.records_existing
             if selectors and len(selectors) > 1:
