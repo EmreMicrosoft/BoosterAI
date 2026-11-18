@@ -519,7 +519,8 @@ def main():
     workspace.add_argument('--records-existing', action='append')
     workspace.add_argument('--create-records', action='store_true')
     workspace.add_argument('--schema')
-    sub.add_parser('self-check').add_argument('--root', default=str(Path(__file__).resolve().parents[1]))
+    self_check_parser = sub.add_parser('self-check')
+    self_check_parser.add_argument('--root', action='append')
     for command in ('gc-plan', 'gc-apply'):
         child = sub.add_parser(command)
         child.add_argument('--root', required=True)
@@ -548,7 +549,11 @@ def main():
         elif args.command == 'partials-init':
             result = partials_init(args.root)
         elif args.command == 'self-check':
-            result = self_check(args.root)
+            roots = args.root
+            if roots is not None and (len(roots) != 1 or not roots[0]):
+                self_check_parser.error('--root may be supplied only once with a nonempty value')
+            root = roots[0] if roots else str(Path(__file__).resolve().parents[1])
+            result = self_check(root)
         elif args.command == 'validate':
             result = validate(json.loads(Path(args.plan).read_text(encoding='utf-8-sig'),
                                          object_pairs_hook=unique_json_object))

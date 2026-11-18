@@ -1,4 +1,4 @@
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import copy
 import hashlib
 import importlib.util
@@ -138,6 +138,50 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                 self.assertEqual(status, 1)
                 self.assertEqual(report, {'error': 'Codex registration repeats its canonical skill link'})
 
+
+class SelfCheckRootCliTests(unittest.TestCase):
+    """Check root selection at the CLI boundary without a package fixture."""
+
+    def test_omitted_and_single_roots_reach_self_check(self):
+        cases = (([], str(ROOT)), (['--root', 'selected package'], 'selected package'))
+        for options, expected_root in cases:
+            with (
+                self.subTest(options=options),
+                patch.object(sys, 'argv', ['booster.py', 'self-check', *options]),
+                patch.object(b, 'self_check', return_value={'valid': True}) as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                self.assertEqual(b.main(), 0)
+                check.assert_called_once_with(expected_root)
+                self.assertEqual(json.loads(stdout.getvalue()), {'valid': True})
+                self.assertEqual(stderr.getvalue(), '')
+
+    def test_invalid_roots_stop_before_self_check(self):
+        first, second = 'first-private-root', 'second-private-root'
+        cases = (['--root='], ['--root', first, f'--root={first}'],
+                 ['--root', first, '--root', second])
+        diagnostics = set()
+        for options in cases:
+            with (
+                self.subTest(options=options),
+                patch.object(sys, 'argv', ['booster.py', 'self-check', *options]),
+                patch.object(b, 'self_check', return_value={'valid': True}) as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                with self.assertRaises(SystemExit) as error:
+                    b.main()
+                self.assertEqual(error.exception.code, 2)
+                check.assert_not_called()
+                self.assertEqual(stdout.getvalue(), '')
+                output = stderr.getvalue()
+                diagnostic = output.partition('error:')[2].strip()
+                self.assertIn('--root', diagnostic)
+                self.assertNotIn(first, output)
+                self.assertNotIn(second, output)
+                diagnostics.add(diagnostic)
+        self.assertLessEqual(len(diagnostics), 1)
 
 class CollectorTests(unittest.TestCase):
     def setUp(self):
