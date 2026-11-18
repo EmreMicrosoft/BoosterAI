@@ -34,11 +34,12 @@ For new Python work, select Python 3.12 or newer. For new .NET work, select .NET
 Use `python -I -S -B scripts/booster.py runtime-check --language python` to check the interpreter actually executing the helper. For .NET, supply the SDK version observed through the authorized host with `runtime-check --language dotnet --observed-version VERSION`. The helper labels the reported SDK version as an unverified observation. Use `--requested-version VERSION` only when the user explicitly requested that version. A major.minor request matches its series and a full version matches exactly.
 
 ## Package and delivery language
-Write BoosterAI-authored package files in English, including source,
-documentation, harness files, and hooks. Preserve exact wording the user
-explicitly asked to retain. Resolve any pending wording approval with the
-owner through the existing approval process. Follow the [user-delivery
-workflow](user-delivery.md) when communicating in the user's language.
+Write all BoosterAI project files and packaged content in English, including
+source comments, documentation, tests, project records, harness files, and
+hooks. This applies to Requirements 42 and 43. Follow the [user-delivery
+workflow](user-delivery.md) when communicating in the user's language. Follow
+the existing approval process for root-instruction changes and publication.
+Apply the [publication privacy workflow](publication-privacy.md) before publishing.
 
 ## Verification and review
 Run applicable syntax/build checks and focused tests, then exercise the real entry point in the actual target. Separate local unit checks from acceptance. Compare actual observations with the predeclared contract; bind evidence to revision and target. Review the diff for unexpected files, lost work, secrets, unnecessary complexity, unbounded loops and inaccurate completion claims. Fix the current slice before advancing. Existing project build tools are target prerequisites, not bundled BoosterAI dependencies.
