@@ -38,7 +38,8 @@ def safe(root, relative):
     return path
 
 
-def workspace(project):
+def workspace(project, *, create=True):
+    """Resolve contained project records and optionally create their directory."""
     project = Path(project).absolute()
     require(project.is_dir(), 'project root missing')
     for ancestor in (project, *project.parents):
@@ -46,7 +47,10 @@ def workspace(project):
         require(not stat.S_ISLNK(info.st_mode) and not (getattr(info, 'st_file_attributes', 0) & 0x400), 'root link/reparse forbidden')
     project = project.resolve()
     root = safe(project, '_boosterAI')
-    root.mkdir(exist_ok=True)
+    if create:
+        root.mkdir(exist_ok=True)
+    else:
+        require(root.is_dir(), 'project records directory missing')
     return root
 
 
@@ -366,7 +370,7 @@ def register_helper(project, name, version, source, evidence, target, source_sco
 
 def helper_check(project, name, version):
     require(re.fullmatch(r'[a-z][a-z0-9-]{0,63}', name) is not None and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) is not None, 'invalid helper identity')
-    root = workspace(project)
+    root = workspace(project, create=False)
     metadata = json.loads(safe(root, 'helpers/' + name + '/' + version + '/metadata.json').read_text(encoding='utf-8'))
     require(isinstance(metadata, dict) and metadata.get('format') == 'boosterai-helper-v1' and metadata.get('name') == name and metadata.get('version') == version, 'invalid helper metadata')
     code, proof = safe(root, metadata['code']), safe(root, metadata['evidence'])
