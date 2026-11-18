@@ -25,7 +25,21 @@ A single executor owns serial critical-path code and live input. Use separate he
 
 Continuity means progressing during the available turn and preserving restartable state. Use existing authorized completion notifications or schedules when available; do not create duplicate watchers or imply a missing event hook exists. If the host cannot wake/resume, disclose the limitation and provide the next supported entry point. A failed notification does not invalidate a successful product test, nor does a successful callback prove it.
 
-Keep the product critical path moving: record deferrable, nonblocking details in the project's `_boosterAI/deferred.md` and return to the next authorized product slice. Do not postpone a necessary acceptance check or hide a real blocker. A security refusal, denied access or mandatory approval still stops the affected action; do not retry or route around it. Independent authorized work continues. Do not use this deferred list as an archive-operation log.
+Keep the product critical path moving. Record nonblocking side work and
+unresolved negative results in the existing TODO, checklist, or other
+appropriate project record. Use the project's `_boosterAI/deferred.md` for
+deferrable details when it is the appropriate record. Update the existing
+entry for the same issue. Link the observation or its evidence and record
+the remaining condition, responsible owner, and next authorized action.
+Revisit the item when the related work needs it or its recorded condition
+changes.
+
+Return to the next authorized product slice while a nonblocking item waits.
+Keep necessary acceptance checks and real blockers visible on the affected
+path. A security refusal, denied access or mandatory approval still stops
+the affected action. Do not retry or route around it. Reconcile ambiguous
+effects before any permitted resumption. Independent authorized work
+continues. Do not use this deferral record as an archive-operation log.
 
 No specialist skill is required. Use the bundled engineering procedures directly. If a BoosterAI file or helper is missing, report the exact missing component and affected capability; continue independent authorized work with the readable procedures. A missing host tool or target prerequisite is an environment limitation, not an invitation to install an external workflow package.
 
