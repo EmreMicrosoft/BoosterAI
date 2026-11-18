@@ -382,30 +382,55 @@ def plain_link_targets(text, target_pattern):
     """Collect complete plain inline links with visible, balanced label brackets.
 
     Treat inline markup as opaque label content and keep it out of destinations.
-    Paragraphs and recognized block markup end open labels. Apply the existing
+    Blank lines, fences and block comments end open labels. Apply the existing
     caller-specific path pattern only after recognizing a supported link.
+    Backtick spans may cross soft line breaks up to a recognized block start.
+    The source profile does not normalize Markdown container prefixes.
     """
-    markup = re.finditer(
+    markup = re.compile(
         r"""
-        (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
+        ^[ ]{0,3}\#{1,6}(?=[ \t]|\r?$)(?P<heading_text>[^\r\n]*)
+        | (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
             ^[ ]{0,3}  # A fence must start on its own source line.
             (?P<fence>(?P<backtick_fence>`{3,})|~{3,})
             (?(backtick_fence)[^`\r\n]*|[^\r\n]*)  # Only tildes allow backticks in fence info.
             (?:\r?\n|\Z)
             .*?(?:^[ ]{0,3}(?P=fence)(?(backtick_fence)`*|~*)[ \t]*(?:\r?\n|\Z)|\Z)
-            | (?P<ticks>`+)(?!`)[^\r\n]*?(?<!`)(?P=ticks)(?!`)
+            | (?P<ticks>`+)(?!`)
+            (?:
+                [^\r\n]
+                | \r?\n(?!  # Leave following blank lines and recognized blocks visible.
+                    [ \t]*(?:\r?\n|\Z)
+                    | [ ]{0,3}(?:
+                        <!-- | > | \#{1,6}(?=[ \t]|\r?$)
+                        | (?:[-+*]|1[.)])[ \t]+(?=\S)
+                        | (?P<rule>[-*_])(?:[ \t]*(?P=rule)){2,}[ \t]*(?=\r?$)
+                        | (?:=+|-+)[ \t]*(?=\r?$)
+                        | (?:`{3,}[^`\r\n]*|~{3,}[^\r\n]*)(?=\r?$)
+                    )
+                )
+            )*?
+            (?<!`)(?P=ticks)(?!`)
             | (?P<block_comment>^[ ]{0,3})?<!--.*?(?:-->|\Z)
         )
         | `+  # An unmatched run remains ordinary text.
         """,
-        text,
         flags=re.DOTALL | re.MULTILINE | re.VERBOSE,
     )
+
+    def inline_tokens():
+        # Heading content keeps its inline markup on a single source line.
+        for token in markup.finditer(text):
+            if token.group('heading_text') is None:
+                yield token
+            else:
+                yield from markup.finditer(text, *token.span('heading_text'))
+
     spans = []
     start = 0
     paragraph_break = r'\r?\n[ \t]*\r?\n'
-    for token in markup:
+    for token in inline_tokens():
         escape = token.group('escape')
         if token.group('skip') is None and (escape is None or escape[-1] not in '[]!'):
             continue

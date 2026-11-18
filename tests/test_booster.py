@@ -312,6 +312,74 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                     report, {'error': 'Codex registration is missing its canonical skill link'},
                 )
 
+    def test_multiline_code_spans_cannot_supply_or_duplicate_routes(self):
+        routes = (
+            (self._check_bundled_body, 'references/operating-algorithm.md', 'no bundled references'),
+            (
+                self._check_registration_body,
+                '../../../SKILL.md',
+                'Codex registration is missing its canonical skill link',
+            ),
+        )
+        for check, target, missing_error in routes:
+            visible = f'[Guide]({target})'
+            hidden = f'[Example]({target})'
+            expected = check(visible)
+            self.assertEqual(expected[0], 0)
+            spans = (
+                ('LF and one backtick', f'Example `literal\n{hidden}\ntext`.'),
+                ('CRLF and two backticks', f'Example ``literal `\r\n{hidden}\r\ntext ``` here``.'),
+                ('escaped first backtick', f'Example \\``literal\n{hidden}\ntext`.'),
+                ('heading-like text', f'Example `literal\n#tag {hidden}\ntext`.'),
+                ('ordered continuation', f'Example `literal\n2. {hidden}\ntext`.'),
+            )
+            for case, span in spans:
+                with self.subTest(target=target, case=case, visible_link=False):
+                    self.assertEqual(check(span), (1, {'error': missing_error}))
+                with self.subTest(target=target, case=case, visible_link=True):
+                    self.assertEqual(check(f'{span}\n{visible}'), expected)
+
+    def test_multiline_code_spans_require_matching_runs_in_one_paragraph(self):
+        routes = (
+            (self._check_bundled_body, 'references/operating-algorithm.md'),
+            (self._check_registration_body, '../../../SKILL.md'),
+        )
+        for check, target in routes:
+            link = f'[Guide]({target})'
+            expected = check(link)
+            self.assertEqual(expected[0], 0)
+            cases = (
+                ('larger closer', f'Example `literal\n{link}\ntext``.'),
+                ('smaller closer', f'Example ``literal\r\n{link}\r\ntext`.'),
+                ('escaped opener', f'Example \\`literal\n{link}\ntext`.'),
+                ('blank line', f'Example `literal\r\n \t\r\n{link}\r\ntext`.'),
+                ('fence', f'Example `literal\n~~~text\n{link}\n~~~\n{link}\ntext`.'),
+                ('block comment', f'Example `literal\n<!--\n{link}\n-->\n{link}\ntext`.'),
+                ('ATX heading', f'Example `literal\n# {link}\ntext`.'),
+                ('after an ATX heading', f'## Example `literal\n{link}\ntext`.'),
+                ('inline code within a heading', f'## Example `{link}`\n{link}'),
+                ('block quote', f'Example `literal\n> {link}\ntext`.'),
+                ('bullet list', f'Example `literal\n- {link}\ntext`.'),
+                ('ordered list', f'Example `literal\n1. {link}\ntext`.'),
+                ('thematic rule', f'Example `literal\n***\n{link}\ntext`.'),
+                ('setext underline', f'Example `literal\n===\n{link}\ntext`.'),
+            )
+            for case, body in cases:
+                with self.subTest(target=target, case=case):
+                    self.assertEqual(check(body), expected)
+
+    def test_multiline_code_span_inside_a_link_label(self):
+        routes = (
+            (self._check_bundled_body, 'references/operating-algorithm.md'),
+            (self._check_registration_body, '../../../SKILL.md'),
+        )
+        for check, target in routes:
+            with self.subTest(target=target):
+                expected = check(f'[Guide]({target})')
+                self.assertEqual(expected[0], 0)
+                body = f'[Read `literal\n] inside code` here]({target})'
+                self.assertEqual(check(body), expected)
+
 
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
