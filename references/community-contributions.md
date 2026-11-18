@@ -10,6 +10,12 @@ The repository-wide license is MIT, as recorded in `LICENSE`; new contributions 
 
 The contributor must identify the exact GitHub link for the proposed contribution or its source, and the authorized target repository and branch must be established before a remote action. Verify identities, repository, branch, scope and current remote state through supported host tools. A link does not authorize access to every repository. During this checkout's maintenance, the owner's one-repository restriction remains in force; another target or source is outside scope without a new explicit authorization.
 
+## Review reusable approval wording
+
+Inspect the exact approval source only with its owner's authorization for that inspection. Draft the shortest useful generic wording and remove personal data, secrets, private paths, and user- or project-specific details. Keep the source reference and approved scope in the authorized private record. The original approval applies only within its recorded scope. Anyone reusing the wording must establish their own authorization.
+
+Keep the draft `LOCAL_ONLY` until the source owner gives separate, explicit consent to share the exact generalized text. Confirm sharing rights, privacy, the authorized repository and branch, and any mandatory action-time approvals. Submit only the approved wording through the [evaluation PR workflow](#prepare-a-reviewable-contribution) and verify the remote PR identity, target, head, and state.
+
 ## Offline input preflight for this checkout
 
 The optional read-only helper reports missing prerequisites without fetching a source, recording a log or creating a PR:
