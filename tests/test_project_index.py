@@ -319,5 +319,55 @@ class ProjectIndexSearchRootTests(unittest.TestCase):
         self.assertEqual(json.loads(stdout.getvalue()), result)
         self.assertEqual(stderr.getvalue(), '')
 
+    def test_rejects_conflicting_filters_before_search(self):
+        cases = (
+            ('--query', 'first', '--query', 'second'),
+            ('--query', 'second', '--query', 'first'),
+            ('--kind', 'partial', '--kind', 'experience'),
+            ('--kind', 'experience', '--kind', 'partial'),
+            ('--query=', '--query', 'first'),
+            ('--query', 'first', '--query='),
+        )
+        for options in cases:
+            argv = ['project_tools.py', 'search-project-index', '--root', 'checkout path', *options]
+            stdout, stderr = StringIO(), StringIO()
+            with self.subTest(options=options):
+                with (
+                    patch.object(sys, 'argv', argv),
+                    patch.object(p, 'search_project_index', return_value={}) as search,
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                    self.assertRaises(SystemExit) as status,
+                ):
+                    sys.exit(p.main())
+                search.assert_not_called()
+                self.assertEqual(status.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), '')
+                self.assertEqual(stderr.getvalue(), 'conflicting project index filter values\n')
+
+    def test_dispatches_omitted_and_identical_filters_once(self):
+        query = '  Example Name  '
+        cases = (
+            ((), '', None),
+            (('--query', '', '--query='), '', None),
+            (('--query', query, '--query', query, '--kind', 'partial', '--kind=partial'),
+             query, 'partial'),
+        )
+        result = {'entries': [], 'source_freshness_checked': False}
+        for options, expected_query, expected_kind in cases:
+            argv = ['project_tools.py', 'search-project-index', '--root', 'checkout path', *options]
+            stdout, stderr = StringIO(), StringIO()
+            with self.subTest(options=options):
+                with (
+                    patch.object(sys, 'argv', argv),
+                    patch.object(p, 'search_project_index', return_value=result) as search,
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                ):
+                    self.assertEqual(p.main(), 0)
+                search.assert_called_once_with('checkout path', expected_query, expected_kind)
+                self.assertEqual(json.loads(stdout.getvalue()), result)
+                self.assertEqual(stderr.getvalue(), '')
+
 
 if __name__=='__main__':unittest.main(verbosity=2)
