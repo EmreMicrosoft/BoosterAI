@@ -23,6 +23,10 @@ NOT VERIFIED when the evidence is insufficient. Use NOT_RUN for a specific
 check that did not run, and give its concrete missing prerequisite. Describe
 controlled checks with their own scope.
 
+For source publication and installed use, follow the
+[source and package publication procedure](publication-privacy.md#source-and-package-publication)
+and report the evidence for each.
+
 ## Deliver files and observe the result
 
 For each requested file, verify that the exact target exists inside the
