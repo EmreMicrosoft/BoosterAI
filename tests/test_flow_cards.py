@@ -435,5 +435,35 @@ class FlowAuditBudgetTests(unittest.TestCase):
                          (2, {"valid": False, "error": "input too large"}))
 
 
+class FlowBindBudgetTests(unittest.TestCase):
+    def test_cli_bind_uses_compact_task_card_validation_character_budget(self):
+        """Accept the exact compact character limit and reject its first excess."""
+        piece = task_slice("prepare")
+        piece["contract"] = "Prepare \u011f\U0001f642"
+        drafts = flow.generate_drafts(SYNTHETIC_DOCUMENT)
+        slices = [piece]
+        bound = flow.bind_node(SYNTHETIC_DOCUMENT, drafts, "C", slices)
+        payload = json.dumps(
+            {"document": SYNTHETIC_DOCUMENT, "bundle": drafts, "node_id": "C", "slices": slices},
+            ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")
+        compact = json.dumps(
+            {"source": bound["card_source"], "bundle": bound["card_bundle"]},
+            ensure_ascii=False, separators=(",", ":"),
+        )
+        limit = len(compact)
+        self.assertLess(limit, len(compact.encode("utf-8")))
+
+        with patch.object(flow._TASKS, "_MAX_STDIN", limit):
+            self.assertEqual(FlowAuditBudgetTests.call("bind", payload, len(payload)), (0, bound))
+        with patch.object(flow._TASKS, "_MAX_STDIN", limit - 1):
+            self.assertEqual(
+                FlowAuditBudgetTests.call("bind", payload, len(payload)),
+                (2, {"valid": False,
+                     "error": "bound source and cards exceed compact validation request limit"}),
+            )
+            self.assertEqual(flow.bind_node(SYNTHETIC_DOCUMENT, drafts, "C", slices), bound)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

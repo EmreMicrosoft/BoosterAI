@@ -227,8 +227,9 @@ def main(argv=None):
     ``drafts`` reads UTF-8 Markdown directly. ``audit``, ``preview`` and ``bind``
     read strict UTF-8 JSON containing the document and their named arguments.
     Input is bounded in bytes and decoded independently of the Windows console
-    code page. Return JSON with exit 0 on success or 2 on invalid input; source
-    text and task descriptions are never written to files or executed.
+    code page. A bind result must fit a compact Task Cards validate request.
+    Return JSON with exit 0 on success or 2 on invalid input. Source text and
+    task descriptions are never written to files or executed.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("drafts", "audit", "preview", "bind"))
@@ -254,6 +255,10 @@ def main(argv=None):
             else:
                 result = bind_node(request["document"], request["bundle"],
                                    request["node_id"], request["slices"])
+                _require(
+                    _TASKS._validation_request_fits(result["card_source"], result["card_bundle"]),
+                    "bound source and cards exceed compact validation request limit",
+                )
         print(json.dumps(result, ensure_ascii=True, sort_keys=True))
         return 0
     except (ValueError, TypeError, UnicodeError, RecursionError) as error:
