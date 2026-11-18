@@ -109,7 +109,7 @@ Use [daily logs and reusable helpers](references/logs-and-helpers.md) at meaning
 
 ## Publication privacy
 
-Before a shared publication, follow [publication privacy](references/publication-privacy.md): inspect the exact proposed files and every commit reachable from each proposed ref, including paths, metadata and messages. A sanitized current snapshot alone does not make older reachable history safe. Keep private terms and project evidence out of public artifacts; a scanner only helps with known patterns and cannot establish complete privacy. Use only the owner's authorized destination and history action, and never use a force push or rewrite an existing history without specific authority.
+Before a shared publication, use [publication privacy](references/publication-privacy.md) to review the exact public files and every commit reachable from each proposed ref. Keep private evidence out of the release and follow the owner's authorization for the destination and any history action.
 
 ## Image reading
 

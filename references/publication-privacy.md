@@ -20,11 +20,16 @@ For a source-only release, review the exact source diff, parent and proposed ref
 
 For a package release, review the final built artifacts and the exact staged marketplace registration, including their metadata and non-text files. Match the source revision, package files and version, runtime manifest and marketplace registration to the scope covered by independent acceptance. Identify installed-copy and live host observations by their actual targets.
 
-For either release, review file paths and contents, commit messages and metadata in every commit reachable from each proposed ref. Verify the actual commit graph and remote refs using supported Git and host tools. Review the updated scope if the proposed content, parent or refs change. When a clean Git history is required, verify parentage and check the destination for earlier branches, tags and commits.
+For either release, identify the exact source repository or fork and pin the parent and proposed ref tips to immutable commits. Review file paths and contents, commit messages and metadata in every commit reachable from each proposed ref. A scanner result or a sanitized tip does not verify reachable history. Keep private terms and project evidence out of every public artifact.
 
-Do not rewrite history, publish or delete anything unless the actual owner has authorized that exact scope and all applicable safety and action-time approval boundaries are satisfied.
+Verify the actual commit graph and remote refs using supported Git and host tools. Review the updated scope if the proposed content, parent or refs change. When a clean Git history is required, verify parentage and check the destination for earlier branches, tags and commits.
+
+Use only the exact destination and action authorized by the actual owner. Satisfy all applicable safety requirements and obtain any mandatory action-time approvals. Do not force-push or rewrite history without specific authority for that action. Do not delete anything without exact owner authorization for the deletion.
 
 For each authorized BoosterAI release, record local test results,
 observed real-target behavior, the publication outcome, and
 post-publication readback of the exact remote ref and commit as
 separate observations in the existing project evidence record.
+When CI applies, record its result for the exact published commit separately.
+Record installed-copy and native-host observations separately for their actual
+targets.
