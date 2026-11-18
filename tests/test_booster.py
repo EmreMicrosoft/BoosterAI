@@ -143,7 +143,8 @@ class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
 
     def test_omitted_and_single_roots_reach_self_check(self):
-        cases = (([], str(ROOT)), (['--root', 'selected package'], 'selected package'))
+        root = ' selected package '
+        cases = (([], str(ROOT)), (['--root', root], root))
         for options, expected_root in cases:
             with (
                 self.subTest(options=options),
@@ -159,9 +160,13 @@ class SelfCheckRootCliTests(unittest.TestCase):
 
     def test_invalid_roots_stop_before_self_check(self):
         first, second = 'first-private-root', 'second-private-root'
-        cases = (['--root='], ['--root', first, f'--root={first}'],
-                 ['--root', first, '--root', second])
-        diagnostics = set()
+        cases = (
+            ['--root='],
+            ['--root= '],
+            ['--root=\t'],
+            ['--root', first, f'--root={first}'],
+            ['--root', first, '--root', second],
+        )
         for options in cases:
             with (
                 self.subTest(options=options),
@@ -177,11 +182,9 @@ class SelfCheckRootCliTests(unittest.TestCase):
                 self.assertEqual(stdout.getvalue(), '')
                 output = stderr.getvalue()
                 diagnostic = output.partition('error:')[2].strip()
-                self.assertIn('--root', diagnostic)
+                self.assertEqual(diagnostic, '--root may be supplied only once with a nonempty value')
                 self.assertNotIn(first, output)
                 self.assertNotIn(second, output)
-                diagnostics.add(diagnostic)
-        self.assertLessEqual(len(diagnostics), 1)
 
 class SchemaStatusRootCliTests(unittest.TestCase):
     """Exercise schema-status argument selection without a workspace fixture."""

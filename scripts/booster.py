@@ -557,7 +557,7 @@ def main():
             result = partials_init(args.root)
         elif args.command == 'self-check':
             roots = args.root
-            if roots is not None and (len(roots) != 1 or not roots[0]):
+            if roots is not None and (len(roots) != 1 or not roots[0].strip()):
                 self_check_parser.error('--root may be supplied only once with a nonempty value')
             root = roots[0] if roots else str(Path(__file__).resolve().parents[1])
             result = self_check(root)
