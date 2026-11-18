@@ -68,6 +68,13 @@ class FreshnessCliArgumentTest(unittest.TestCase):
                 self.assertEqual(stdout, '')
                 self.assertTrue(stderr.rstrip().endswith('invalid arguments. Use --help for usage.'))
 
+    def test_whitespace_only_root_is_rejected_before_comparison(self):
+        path_arg = ['--path', '_partials/README.md']
+        _, _, usage = self.invoke_parser(['--root='] + path_arg)
+        for root in (['--root= '], ['--root', '\t'], ['--root= \t '], ['--root', '\u2003']):
+            with self.subTest(root=root):
+                self.assertEqual(self.invoke_parser(root + path_arg), (2, '', usage))
+
     def test_require_current_rejects_an_explicit_value_before_comparison(self):
         value = 'synthetic-argument-value'
         code, stdout, stderr = self.invoke_parser([
@@ -78,8 +85,8 @@ class FreshnessCliArgumentTest(unittest.TestCase):
         self.assertTrue(stderr.rstrip().endswith('invalid arguments. Use --help for usage.'))
         self.assertNotIn(value, stderr)
 
-    def compare(self, paths, strict, *, report=None, error=None):
-        argv = ['--root', '.']
+    def compare(self, paths, strict, *, root='.', report=None, error=None):
+        argv = ['--root', root]
         for path in paths:
             argv.extend(['--path', path])
         if strict:
@@ -90,9 +97,16 @@ class FreshnessCliArgumentTest(unittest.TestCase):
             redirect_stderr(io.StringIO()) as stderr,
         ):
             code = FRESHNESS.main(argv)
-        check.assert_called_once_with('.', *paths)
+        check.assert_called_once_with(root, *paths)
         self.assertEqual(stderr.getvalue(), '')
         return code, stdout.getvalue()
+
+    def test_nonblank_root_is_forwarded_verbatim(self):
+        root = ' synthetic-root \t'
+        path = '_partials/README.md'
+        report = {'status': 'CURRENT', 'scope': 'selected_index_entry', 'path': path}
+        self.assertEqual(self.compare([path], False, root=root, report=report),
+                         (0, json.dumps(report) + '\n'))
 
     def test_require_current_single_entry_keeps_the_report(self):
         path = '_partials/README.md'

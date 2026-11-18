@@ -79,7 +79,7 @@ def main(argv=None):
     parser.add_argument('--require-current', action='store_true',
                         help='exit 3 if any selected indexed file is stale')
     args = parser.parse_args(argv)
-    if len(args.root) != 1 or not args.root[0]:
+    if len(args.root) != 1 or not args.root[0].strip():
         parser.error('exactly one nonempty project root is required')
     try:
         result = check_freshness(args.root[0], *args.path)
