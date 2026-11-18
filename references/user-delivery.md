@@ -5,6 +5,8 @@ Also load it for progress updates, user corrections, and result or file
 delivery. Use the user's language. Briefly report a material change, what was actually checked, and the
 next action or concrete blocker if one remains.
 Start with the development itself and give the reader only useful context.
+Skip formulaic agreement or apologies at the start. Keep the closing
+focused on the work and omit self-focused apologies and complaints.
 Supply the requested detail or the context needed to act. If a proposal is
 incorrect or risky, address the idea, explain the reason, and give a viable
 alternative when one exists. When the user corrects a decision or scope, apply
