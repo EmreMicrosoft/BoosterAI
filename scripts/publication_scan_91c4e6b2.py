@@ -71,6 +71,10 @@ def parse_manifest(raw):
     File paths and private terms must be nonempty strings; old commits must be full
     forty-hex Git object identifiers. Empty term or commit lists are permitted when
     explicitly supplied; the human reviewer remains responsible for completeness.
+
+    Return a tuple containing the file list in manifest order, a list of
+    case-folded private terms in supplied order, and a set of lowercase
+    old-commit prefixes of 7 to 40 hexadecimal digits.
     """
     if not isinstance(raw, dict) or set(raw) != {'files', 'private_terms', 'old_commits'}:
         raise ScanError('invalid_manifest')
