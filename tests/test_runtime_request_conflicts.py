@@ -63,6 +63,94 @@ class RuntimeRequestConflictTests(unittest.TestCase):
             self.assertEqual(json.loads(stdout.getvalue()), expected)
             self.assertEqual(stderr.getvalue(), "")
 
+    def test_distinct_observations_fail_before_runtime_verification(self):
+        cases = (
+            ("python", "3.11.9", "3.12.7"),
+            ("python", "3.12.7", "3.11.9"),
+            ("dotnet", "9.0.101", "10.0.100"),
+            ("dotnet", "10.0.100", "9.0.101"),
+        )
+        for language, first, second in cases:
+            argv = ["booster.py", "runtime-check", "--language", language,
+                    "--observed-version", first, f"--observed-version={second}"]
+            with (
+                self.subTest(language=language, first=first, second=second),
+                patch.object(sys, "argv", argv),
+                patch.object(BOOSTER, "runtime_check") as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+                self.assertRaises(SystemExit) as error,
+            ):
+                BOOSTER.main()
+            check.assert_not_called()
+            self.assertEqual(error.exception.code, 2)
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertTrue(stderr.getvalue().splitlines()[-1].endswith(
+                "runtime-check: error: conflicting --observed-version values"))
+            self.assertNotIn(first, stderr.getvalue())
+            self.assertNotIn(second, stderr.getvalue())
+
+    def test_requested_conflict_takes_precedence_over_observed_conflict(self):
+        argv = [*RUNTIME_ARGV, "--observed-version", "3.11.9", "--observed-version=3.12.7",
+                "--requested-version", "3.11", "--requested-version=3.12"]
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(BOOSTER, "runtime_check") as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+            self.assertRaises(SystemExit) as error,
+        ):
+            BOOSTER.main()
+        check.assert_not_called()
+        self.assertEqual(error.exception.code, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertTrue(stderr.getvalue().splitlines()[-1].endswith(
+            "runtime-check: error: conflicting --requested-version values"))
+        self.assertNotIn("3.11", stderr.getvalue())
+        self.assertNotIn("3.12", stderr.getvalue())
+
+    def test_default_single_and_identical_observations_keep_runtime_results(self):
+        cases = (
+            ("python", None, []),
+            ("python", "3.12.7", ["--observed-version", "3.12.7"]),
+            ("python", "3.12.7", ["--observed-version", "3.12.7", "--observed-version=3.12.7"]),
+            ("dotnet", "9.0.101", ["--observed-version", "9.0.101"]),
+            ("dotnet", "9.0.101", ["--observed-version", "9.0.101", "--observed-version=9.0.101"]),
+        )
+        for language, observed, options in cases:
+            expected = BOOSTER.runtime_check(language, observed)
+            argv = ["booster.py", "runtime-check", "--language", language, *options]
+            with (
+                self.subTest(language=language, options=options),
+                patch.object(sys, "argv", argv),
+                patch.object(BOOSTER, "runtime_check", wraps=BOOSTER.runtime_check) as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                status = BOOSTER.main()
+            check.assert_called_once_with(language, observed, None)
+            self.assertEqual(status, int(not expected["valid"]))
+            self.assertEqual(json.loads(stdout.getvalue()), expected)
+            self.assertEqual(stderr.getvalue(), "")
+
+    def test_empty_observation_is_forwarded_to_runtime_verification(self):
+        cases = (["--observed-version="], ["--observed-version", "", "--observed-version="])
+        for options in cases:
+            with (
+                self.subTest(options=options),
+                patch.object(sys, "argv", [*RUNTIME_ARGV, *options]),
+                patch.object(BOOSTER, "runtime_check", wraps=BOOSTER.runtime_check) as check,
+                redirect_stdout(io.StringIO()) as stdout,
+                redirect_stderr(io.StringIO()) as stderr,
+            ):
+                status = BOOSTER.main()
+            check.assert_called_once_with("python", "", None)
+            self.assertEqual(status, 1)
+            self.assertEqual(json.loads(stdout.getvalue()), {
+                "error": "version must be a stable numeric major.minor or major.minor.patch",
+            })
+            self.assertEqual(stderr.getvalue(), "")
+
 
 if __name__ == "__main__":
     unittest.main()
