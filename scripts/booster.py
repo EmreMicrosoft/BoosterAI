@@ -379,14 +379,15 @@ def schema_status(root):
     return {'source': data['source'], 'source_changed': digest(source) != data.get('source_sha256'), 'working_copy_changed': digest(working) != data.get('source_sha256'), 'acceptance_verified': False}
 
 def plain_link_targets(text, target_pattern):
-    """Scan plain inline routes outside comments and ordinary code examples.
+    """Collect complete plain inline links with visible, balanced label brackets.
 
-    Recognize top-level fences and same-line backtick spans. Keep spans
-    separate so removing a comment or example cannot create a new route.
+    Treat inline markup as opaque label content and keep it out of destinations.
+    Paragraphs and recognized block markup end open labels. Apply the existing
+    caller-specific path pattern only after recognizing a supported link.
     """
     markup = re.finditer(
         r"""
-        \\[\\`<]  # An escaped character cannot open a comment or code span.
+        (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
             ^[ ]{0,3}  # A fence must start on its own source line.
             (?P<fence>(?P<backtick_fence>`{3,})|~{3,})
@@ -394,20 +395,55 @@ def plain_link_targets(text, target_pattern):
             (?:\r?\n|\Z)
             .*?(?:^[ ]{0,3}(?P=fence)(?(backtick_fence)`*|~*)[ \t]*(?:\r?\n|\Z)|\Z)
             | (?P<ticks>`+)(?!`)[^\r\n]*?(?<!`)(?P=ticks)(?!`)
-            | <!--.*?(?:-->|\Z)
+            | (?P<block_comment>^[ ]{0,3})?<!--.*?(?:-->|\Z)
         )
         | `+  # An unmatched run remains ordinary text.
         """,
         text,
         flags=re.DOTALL | re.MULTILINE | re.VERBOSE,
     )
-    targets = []
+    spans = []
     start = 0
+    paragraph_break = r'\r?\n[ \t]*\r?\n'
     for token in markup:
-        if token.group('skip') is not None:
-            targets.extend(re.findall(target_pattern, text[start:token.start()]))
-            start = token.end()
-    targets.extend(re.findall(target_pattern, text[start:]))
+        escape = token.group('escape')
+        if token.group('skip') is None and (escape is None or escape[-1] not in '[]!'):
+            continue
+        spans.append(text[start:token.start()])
+        if (token.group('fence') is not None or token.group('block_comment') is not None
+                or re.search(paragraph_break, token.group())):
+            spans.append('\0\n\n\0')
+        else:
+            # Opaque content keeps label brackets apart from any destination.
+            spans.append('\0')
+        start = token.end()
+    spans.append(text[start:])
+    visible = ''.join(spans)
+
+    destination = re.compile(r'\]\(([^()\s\0]*)\)')
+    targets = []
+    labels = []
+    destination_end = 0
+    for marker in re.finditer(r'!?\[|\]|' + paragraph_break, visible):
+        if marker.start() < destination_end:
+            continue
+        value = marker.group()
+        if value.endswith('['):
+            labels.append(value == '[')
+        elif value != ']':
+            labels.clear()
+        elif labels:
+            is_link = labels.pop()
+            match = destination.match(visible, marker.start())
+            if match is None:
+                continue
+            route = re.fullmatch(target_pattern, match.group())
+            destination_end = match.end()
+            if is_link:
+                # A link inside a label prevents that outer label from linking.
+                labels.clear()
+                if route is not None:
+                    targets.append(route[1])
     return targets
 
 

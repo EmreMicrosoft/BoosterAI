@@ -146,6 +146,59 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                 self.assertEqual(status, 1)
                 self.assertEqual(report, {'error': 'Codex registration repeats its canonical skill link'})
 
+    def test_inline_routes_require_complete_visible_labels(self):
+        routes = (
+            (
+                self._check_bundled_body,
+                'references/operating-algorithm.md',
+                'no bundled references',
+            ),
+            (
+                self._check_registration_body,
+                '../../../SKILL.md',
+                'Codex registration is missing its canonical skill link',
+            ),
+        )
+        valid_labels = ('Guide', 'Read [the guide]', r'Read \[the guide\]', 'Read `]` here', '')
+        for check, target, missing_error in routes:
+            visible_link = f'[Visible]({target})'
+            expected = check(visible_link)
+            self.assertEqual(expected[0], 0)
+            suffix = f']({target})'
+            incomplete = (
+                suffix,
+                f'<!-- [Hidden -->{suffix}',
+                f'`[Hidden`{suffix}',
+                rf'\[Escaped{suffix}',
+                rf'[Escaped close\{suffix}',
+            )
+            for malformed in incomplete:
+                with self.subTest(target=target, malformed=malformed, visible_link=False):
+                    self.assertEqual(check(malformed), (1, {'error': missing_error}))
+                with self.subTest(target=target, malformed=malformed, visible_link=True):
+                    self.assertEqual(check(f'{malformed} {visible_link}'), expected)
+            for label in valid_labels:
+                with self.subTest(target=target, label=label):
+                    self.assertEqual(check(f'[{label}]({target})'), expected)
+
+    def test_malformed_destinations_do_not_hide_or_add_routes(self):
+        routes = (
+            (self._check_bundled_body, 'references/operating-algorithm.md'),
+            (self._check_registration_body, '../../../SKILL.md'),
+        )
+        for check, target in routes:
+            link = f'[Route]({target})'
+            expected = check(link)
+            self.assertEqual(expected[0], 0)
+            cases = (
+                ('inner link after an incomplete destination', f'[Broken](x({link}'),
+                ('unbalanced parenthesis', f'{link} [Broken]({target}(x)'),
+                ('unquoted text', f'{link} [Broken]({target} unquoted)'),
+            )
+            for case, body in cases:
+                with self.subTest(target=target, case=case):
+                    self.assertEqual(check(body), expected)
+
     def test_commented_bundled_reference_cannot_supply_required_route(self):
         target = 'references/operating-algorithm.md'
         link = f'[Workflow]({target})'
