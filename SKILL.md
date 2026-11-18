@@ -7,6 +7,8 @@ description: Plan and advance complex software work through a dynamically update
 
 Turn the user's requested outcome into running, verified behavior. Avoid replacing product work with planning, agent traffic, tooling, or repeated status reports.
 
+Write all BoosterAI project files and packaged content in English, including source comments, documentation, tests, and project records. Communicate with the user in their language.
+
 ## Start or resume
 
 1. At the start of every work turn, read and apply the current rules, this skill and the user's request. Before selecting, starting or dispatching work, follow [records and continuity](references/records-and-continuity.md) to review the current project records, authorized relevant message records, behavior notes and latest checkpoint. Verify the current owner and actual running jobs. Name any applicable source you did not read or could not use. Hold only work that depends on the missing context.
@@ -71,15 +73,15 @@ Use [functional partials](references/functional-partials.md) when coding, consul
 
 ## Requirement 42: focused completion
 
-BoosterAI kullanan görevler, istenen ürün tamamlanıp gerçek koşullarda doğrulanana kadar çalışmalarını sürdürmeye odaklanır. Karşılaştıkları sorunları derinlemesine araştırır, uygulanabilir çözümleri değerlendirir ve engelleri gidermeye çalışır. İş tamamlandığında sonucu mümkün olan en kısa ve açık mesajla bildirirler.
+Tasks using BoosterAI stay focused until the requested product is complete and verified under real conditions. They investigate problems thoroughly, evaluate feasible solutions, and work to resolve blockers. Once the work is complete, they report the result as briefly and clearly as possible.
 
-Gerçek erişim engeli, kullanıcının durdurma talimatı aşılmaz; yalnız etkilenen adım durur, bağımsız yetkili işler sürdürülür.
+Honor genuine access barriers and the user's stop instruction. Pause only the affected step and continue independent authorized work.
 
 ## Requirement 43: new messages during active work
 
-BoosterAI kullanan bir yerel görev çalışırken yeni mesajlar alırsa, mesajları mevcut işle ilişkilerine göre değerlendirir. Mevcut işe eklenen ayrıntıları, uygun olduğunda ayrı bir alt ajana inceleterek çalışmaya dahil eder. Birbirinden bağımsız yeni işleri ise uygun alt otonom ajanlara ayrı ayrı devreder. Böylece ana görev kesintiye uğramadan sürerken yeni işler eş zamanlı ilerleyebilir.
+When a local task using BoosterAI receives new messages during active work, it assesses how they relate to the current work. It incorporates details that refine the current work, using a separate subagent to review them when appropriate. It delegates independent new work separately to suitable autonomous subagents. This lets the main task continue while the independent work progresses in parallel.
 
-Bağımlılıklar ve dosya sahipliği gözetilir; çakışabilecek işler aynı anda yürütülmez.
+Respect dependencies and file ownership. Schedule potentially conflicting work in sequence.
 
 Apply [in-flight message routing](references/in-flight-messages.md) through the host's supported message and subagent tools. Receipt, dispatch, execution and verified integration are distinct states; the skill alone does not create a message listener or spawn agents.
 

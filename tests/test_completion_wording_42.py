@@ -12,9 +12,13 @@ class CompletionWordingTests(unittest.TestCase):
         self.assertEqual(text.count(heading), 1)
         actual = text.split(heading, 1)[1].split("\n## ", 1)[0].strip()
         expected = (
-            "BoosterAI kullanan görevler, istenen ürün tamamlanıp gerçek koşullarda doğrulanana kadar çalışmalarını sürdürmeye odaklanır. Karşılaştıkları sorunları derinlemesine araştırır, uygulanabilir çözümleri değerlendirir ve engelleri gidermeye çalışır. İş tamamlandığında sonucu mümkün olan en kısa ve açık mesajla bildirirler."
+            "Tasks using BoosterAI stay focused until the requested product is complete "
+            "and verified under real conditions. They investigate problems thoroughly, "
+            "evaluate feasible solutions, and work to resolve blockers. Once the work is "
+            "complete, they report the result as briefly and clearly as possible."
             "\n\n"
-            "Gerçek erişim engeli, kullanıcının durdurma talimatı aşılmaz; yalnız etkilenen adım durur, bağımsız yetkili işler sürdürülür."
+            "Honor genuine access barriers and the user's stop instruction. Pause only "
+            "the affected step and continue independent authorized work."
         )
         self.assertEqual(actual, expected)
 

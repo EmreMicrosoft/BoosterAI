@@ -12,8 +12,15 @@ class InflightMessageTests(unittest.TestCase):
         self.assertEqual(text.count(heading), 1)
         section = text.split(heading, 1)[1].split("\n## ", 1)[0].strip()
         expected = (
-            "BoosterAI kullanan bir yerel görev çalışırken yeni mesajlar alırsa, mesajları mevcut işle ilişkilerine göre değerlendirir. Mevcut işe eklenen ayrıntıları, uygun olduğunda ayrı bir alt ajana inceleterek çalışmaya dahil eder. Birbirinden bağımsız yeni işleri ise uygun alt otonom ajanlara ayrı ayrı devreder. Böylece ana görev kesintiye uğramadan sürerken yeni işler eş zamanlı ilerleyebilir."
-            "\n\nBağımlılıklar ve dosya sahipliği gözetilir; çakışabilecek işler aynı anda yürütülmez."
+            "When a local task using BoosterAI receives new messages during active work, "
+            "it assesses how they relate to the current work. It incorporates details "
+            "that refine the current work, using a separate subagent to review them "
+            "when appropriate. It delegates independent new work separately to suitable "
+            "autonomous subagents. This lets the main task continue while the independent "
+            "work progresses in parallel."
+            "\n\n"
+            "Respect dependencies and file ownership. "
+            "Schedule potentially conflicting work in sequence."
         )
         self.assertEqual(section.split("\n\nApply ", 1)[0], expected)
         self.assertIn("(references/in-flight-messages.md)", section)
