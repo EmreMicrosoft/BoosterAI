@@ -80,6 +80,48 @@ incoming item and actual result to that assignment. Reuse earlier
 acceptance only within its current revision, dependencies, target and
 conditions.
 
+## Future scheduled requests and script operations
+
+A future scheduler offers due work through the host's supported request path.
+Use one source-scoped request identity for each due occurrence and keep it
+stable on redelivery. In the existing project record, bind that identity to
+the authorized project root, current plan revision, one slice and its allowed
+target and effects. On redelivery, compare the binding and read the recorded
+pending, active or terminal state and any receipt, run and result. Continue
+a pending request through the existing eligibility checks once you confirm
+it has never been dispatched. For an existing dispatch, keep its identity
+and report the observed state or current matching result. Hold a conflicting
+binding, uncertain send or unresolved effect for reconciliation.
+Follow [in-flight messages](in-flight-messages.md) for the existing
+deduplication and routing procedure.
+
+The scheduler chooses when to offer work. Before dispatch the host checks
+current authority, any required action-time approvals, the actual owner,
+fresh prerequisites, STOP and refusals. An expired grant needs a fresh
+applicable decision. The [single-executor harness](optional-harness.md) controls
+one eligible serial run and its acceptance evidence. Record the offer, host
+receipt, dispatch, transport acknowledgement, recipient delivery, processing
+and accepted result as distinct observations in the existing records.
+
+Describe each future script operation with one selected
+[Task Card](operating-algorithm.md#source-complete-task-cards). Bind the stable
+operation identity to the authorized root and target, the exact project-relative
+entry point, effective code revision and arguments. Declare inputs, expected
+outputs and effects, read files, file ownership, dependencies and acceptance.
+Set the approved attempt, timeout and elapsed limits for the selected run.
+
+Specify the real target observation that distinguishes an already applied
+effect from pending work. Reconcile an unresolved outcome using the existing
+recovery rules before considering another attempt. Preserve STOP, refusals
+and an unresolved attempted verifier's executor slot. Verify the declared
+real-target test on that same run and retain the result with its working-file
+and verifier fingerprints.
+
+Keep [daily archive feedback](daily-archive-sync.md) on its invocation-time
+rules. Acceptance of a future integration must observe redelivery of the same
+due identity, one eligible launch, handling of prior or unresolved effects,
+and same-run real acceptance. Record unobserved automated stages as NOT_RUN.
+
 ## Accept a native adapter only on observed effects
 
 On a selected host exposing a supported native interface, bind the actual
