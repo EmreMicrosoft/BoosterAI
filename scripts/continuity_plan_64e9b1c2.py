@@ -71,8 +71,9 @@ def _relative(value):
 
     ``value`` must be a nonempty canonical forward-slash path; return that same
     string on success. Raise ValueError for absolute paths, streams, traversal,
-    backslashes, reserved Windows names or ambiguous components. This lexical
-    check performs no filesystem I/O and does not establish file ownership.
+    backslashes, reserved Windows names or ambiguous components. Reserved stems
+    include space-padded names before the first extension. This lexical check
+    performs no filesystem I/O and does not establish file ownership.
     """
     _text(value, "path")
     _require("\\" not in value and ":" not in value and "\x00" not in value,
@@ -85,8 +86,9 @@ def _relative(value):
              and all(p not in (".", "..") for p in path.parts),
              "noncanonical path or traversal forbidden")
     for part in path.parts:
+        device_stem = part.partition(".")[0].rstrip(" ").upper()
         _require(not part.endswith((".", " "))
-                 and part.split(".", 1)[0].upper() not in _RESERVED_NAMES
+                 and device_stem not in _RESERVED_NAMES
                  and not any(ord(character) < 32 or character in '<>"|?*' for character in part),
                  "ambiguous path component")
     return value

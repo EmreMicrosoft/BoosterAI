@@ -504,6 +504,38 @@ class TaskCardTests(unittest.TestCase):
                     package.self_check(ROOT)
 
 
+class TaskCardWindowsPathTests(unittest.TestCase):
+    """Exercise declared Windows paths using only in-memory task-card data."""
+
+    def test_space_padded_device_stems_are_rejected(self):
+        """Reject reserved filenames and directory components in both path fields."""
+        for path in ("NUL .txt", "reports/cOm1  .json", "reports/lpt\u00b2 .metadata/result.txt"):
+            for field in ("read_files", "file_owners"):
+                source = source_graph()
+                row = source["nodes"][0]["slices"][0]
+                row[field] = [path] if field == "read_files" else {path: row["owner"]}
+                with (
+                    self.subTest(path=path, field=field),
+                    self.assertRaisesRegex(ValueError, "^ambiguous path component$"),
+                ):
+                    cards.generate_cards(source)
+
+    def test_ordinary_spaces_in_path_declarations_are_preserved(self):
+        """Keep ordinary spaces and nonreserved stems in generated cards."""
+        source = source_graph()
+        row = source["nodes"][0]["slices"][0]
+        read_path = "reports/NUL plan.json"
+        write_path = "reports draft/COM10 .json"
+        row["read_files"] = [read_path]
+        row["file_owners"] = {write_path: row["owner"]}
+
+        bundle = cards.generate_cards(source)
+        card = next(card for card in bundle["cards"] if card["id"] == row["id"])
+        self.assertEqual(card["read_files"], [read_path])
+        self.assertEqual(card["file_owners"], {write_path: row["owner"]})
+        self.assertTrue(cards.validate_cards(source, bundle)["valid"])
+
+
 class TaskCardStdinTests(unittest.TestCase):
     def test_real_cli_reads_utf8_independent_of_locale(self):
         owner = "M\u00fcnchen"
