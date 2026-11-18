@@ -137,6 +137,50 @@ class HelperLookupReadOnlyTests(unittest.TestCase):
             self.assertNotIn(first, output)
             self.assertNotIn(second, output)
 
+    def test_cli_rejects_conflicting_versions_before_helper_lookup(self):
+        root = "private-project-root"
+        first, second = "1.2.3", "4.5.6"
+        for before, after in ((first, second), (second, first)):
+            with self.subTest(versions=(before, after)):
+                argv = ["project_tools.py", "check-helper", "--root", root,
+                        "--name", "example", "--version", before, f"--version={after}"]
+                with (
+                    patch.object(sys, "argv", argv),
+                    patch.object(PROJECT_TOOLS, "helper_check") as check,
+                    redirect_stdout(io.StringIO()) as stdout,
+                    redirect_stderr(io.StringIO()) as stderr,
+                    self.assertRaises(SystemExit) as error,
+                ):
+                    PROJECT_TOOLS.main()
+
+                check.assert_not_called()
+                self.assertEqual(error.exception.code, 2)
+                self.assertEqual(stdout.getvalue(), "")
+                output = stderr.getvalue()
+                self.assertTrue(output.splitlines()[-1].endswith(
+                    "check-helper: error: conflicting --version values"
+                ), output)
+                self.assertNotIn(root, output)
+                self.assertNotIn(first, output)
+                self.assertNotIn(second, output)
+
+    def test_cli_forwards_identical_repeated_versions_once(self):
+        root, version = "selected project", "01.0.0"
+        argv = ["project_tools.py", "check-helper", "--root", root,
+                "--name", "example", "--version", version, f"--version={version}"]
+        report = {"path": "helpers/example/01.0.0/example_3b7e41a9.py"}
+        with (
+            patch.object(sys, "argv", argv),
+            patch.object(PROJECT_TOOLS, "helper_check", return_value=report) as check,
+            redirect_stdout(io.StringIO()) as stdout,
+            redirect_stderr(io.StringIO()) as stderr,
+        ):
+            self.assertEqual(PROJECT_TOOLS.main(), 0)
+
+        check.assert_called_once_with(root, "example", version)
+        self.assertEqual(json.loads(stdout.getvalue()), report)
+        self.assertEqual(stderr.getvalue(), "")
+
 
 if __name__ == "__main__":
     unittest.main()

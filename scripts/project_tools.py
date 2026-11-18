@@ -1157,7 +1157,7 @@ def main():
     check = sub.add_parser('check-helper')
     check.add_argument('--root', required=True, action='append')
     check.add_argument('--name', required=True)
-    check.add_argument('--version', required=True)
+    check.add_argument('--version', required=True, action='append')
     archive=sub.add_parser('archive-example');archive.add_argument('--root',required=True);archive.add_argument('--source',required=True);archive.add_argument('--review',required=True)
     search = sub.add_parser('search-archive')
     search.add_argument('--root', required=True, action='append')
@@ -1197,7 +1197,9 @@ def main():
             roots = args.root
             if len(roots) != 1 or not roots[0].strip():
                 check.error('exactly one nonblank --root is required')
-            result = helper_check(roots[0], args.name, args.version)
+            if len(set(args.version)) != 1:
+                check.error('conflicting --version values')
+            result = helper_check(roots[0], args.name, args.version[0])
         print(json.dumps(result,indent=2));return 0
     except (ValueError,OSError,KeyError,TypeError) as error:
         print(json.dumps({'error':str(error)}));return 1
