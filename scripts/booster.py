@@ -678,9 +678,13 @@ def main():
             root = roots[0] if roots else str(Path(__file__).resolve().parents[1])
             result = self_check(root)
         elif args.command == 'validate':
-            result = validate(json.loads(Path(args.plan).read_text(encoding='utf-8-sig'),
-                                         object_pairs_hook=unique_json_object,
-                                         parse_constant=reject_json_constant))
+            plan_text = Path(args.plan).read_text(encoding='utf-8-sig')
+            try:
+                plan = json.loads(plan_text, object_pairs_hook=unique_json_object,
+                                  parse_constant=reject_json_constant)
+            except RecursionError:
+                raise ValueError('plan JSON nesting is too deep') from None
+            result = validate(plan)
         else:
             result = collect(args.root, args.manifest, args.owner, args.command == 'gc-apply')
         print(json.dumps(result, indent=2))

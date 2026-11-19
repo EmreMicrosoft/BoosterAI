@@ -111,6 +111,23 @@ class PlanTests(unittest.TestCase):
         duplicate = r'{"value": 1, "v\u0061lue": 2}'
         self.assertEqual(validate_metadata(duplicate), (1, {'error': 'duplicate JSON object key'}))
 
+    def test_validate_cli_reports_json_nesting_error(self):
+        plan_path = ROOT / 'virtual-plan.json'
+        plan_json = json.dumps(plan())
+        with (patch.object(sys, 'argv', ['booster.py', 'validate', str(plan_path)]),
+              patch.object(b, 'Path') as path,
+              patch.object(b.json, 'loads', side_effect=RecursionError('decoder detail')) as decode,
+              redirect_stdout(io.StringIO()) as stdout,
+              redirect_stderr(io.StringIO()) as stderr):
+            path.return_value.read_text.return_value = plan_json
+            status = b.main()
+
+        decode.assert_called_once()
+        self.assertEqual(decode.call_args.args[0], plan_json)
+        self.assertEqual(status, 1)
+        self.assertEqual(json.loads(stdout.getvalue()), {'error': 'plan JSON nesting is too deep'})
+        self.assertEqual(stderr.getvalue(), '')
+
 class SelfCheckDuplicateRoutingTests(unittest.TestCase):
     """Exercise the actual source checker without a workspace fixture."""
 
