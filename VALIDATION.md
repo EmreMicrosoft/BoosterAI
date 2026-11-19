@@ -269,3 +269,11 @@ A real local scanner invocation with a 60,001-byte nested JSON manifest returned
 ## Daily eligibility gate without transport or activation
 
 Three isolated daily-gate regressions passed on Windows Python 3.12 and 3.14. They use actual stored pointer and valid snapshot reads, but fixture the cooperative lock and offline transport. An assertion guard prevents os.replace from running, so no archive activation or previously denied stage move is exercised. A different local calendar date within the same UTC day skips transport; a new UTC day becomes eligible; explicit force bypasses the date skip. Synthetic transport failure preserves the previous successful-day pointer. These checks do not establish live upstream availability, automatic host invocation, a scheduler, or successful daily activation. Full-suite and remote CI were not retried under the existing access restrictions.
+
+## BoosterAI 0.2.3 draft archive acceptance
+
+The published build-only assembler at source commit `e4137ae6e6fadc1d10efa95e74d36fe6e27cc62d` reproduced the 876,926-byte draft ZIP on Windows and Python 3.12. Its SHA-256 is `5d87b537fcd697755c5885a1c83b1fd266ffdb7baba7e6e336d87f53c617f4c3`.
+
+Independent read-only inspection confirmed all 80 expected archive paths, all 74 runtime file hashes, all five outer file hashes, version 0.2.3 and the exact runtime manifest pin. Missing, extra, duplicate and mismatched entries each had a count of zero. All CRC checks passed.
+
+The same archive passed the English user-facing text and safeguards review, including Requirements 42 and 43. Unicode examples in tests were reviewed as synthetic inputs. Assembly acceptance and read-only integrity apply to the digest above. The representative bundled entry remains unverified.
