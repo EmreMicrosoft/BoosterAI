@@ -9,7 +9,8 @@ import stat
 import sys
 
 
-TARGET = 'https://github.com/EmreMicrosoft/BoosterAI'
+TARGET = 'https://github.com/QuillCrank/BoosterAI'
+OWNER_ALIASES = ('quillcrank', 'emremicrosoft')
 BRANCH = 'main'
 REQUIRED = ('contributor', 'source_url', 'consent_reference', 'consent_scope',
             'license', 'rights_review', 'privacy_review', 'security_review',
@@ -85,11 +86,13 @@ def specific_source_url(value):
     """Check only the syntax and repository scope of a specific GitHub link.
 
     Issue, pull-request, immutable commit and immutable blob links are supported.
-    Only ASCII URL syntax is accepted. This does not contact GitHub or establish existence, ownership or permission.
+    Only ASCII URL syntax is accepted. The previous owner is accepted for
+    historical references only. This does not contact GitHub or establish
+    existence, ownership or permission.
     """
     if not isinstance(value, str):
         return False
-    pattern = (r'https://github\.com/EmreMicrosoft/BoosterAI/'
+    pattern = (r'https://github\.com/(?:QuillCrank|EmreMicrosoft)/BoosterAI/'
                r'(?:issues/[1-9][0-9]*|pull/[1-9][0-9]*|commit/[0-9a-f]{40}'
                r'|blob/[0-9a-f]{40}/[A-Za-z0-9._/-]+)')
     if re.fullmatch(pattern, value, flags=re.IGNORECASE | re.ASCII) is None:
@@ -124,7 +127,7 @@ def evaluate(root, review):
         value = review['contributor']
         if (not isinstance(value, str) or len(value) > 39
                 or re.fullmatch(r'[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*', value) is None
-                or value.casefold() == 'emremicrosoft'):
+                or value.casefold() in OWNER_ALIASES):
             invalid.append('contributor')
     if 'source_url' not in missing and not specific_source_url(review['source_url']):
         invalid.append('source_url')

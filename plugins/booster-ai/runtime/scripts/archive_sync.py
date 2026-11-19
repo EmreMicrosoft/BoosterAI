@@ -16,9 +16,11 @@ from contextlib import contextmanager
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import archive_profile as profile
 
-REPOSITORY='https://github.com/EmreMicrosoft/BoosterAI'
-COMMIT_URL='https://api.github.com/repos/EmreMicrosoft/BoosterAI/commits/main'
-RAW='https://raw.githubusercontent.com/EmreMicrosoft/BoosterAI/'
+REPOSITORY='https://github.com/QuillCrank/BoosterAI'
+LEGACY_REPOSITORY='https://github.com/EmreMicrosoft/BoosterAI'
+LOCAL_REPOSITORIES=(REPOSITORY, LEGACY_REPOSITORY)
+COMMIT_URL='https://api.github.com/repos/QuillCrank/BoosterAI/commits/main'
+RAW='https://raw.githubusercontent.com/QuillCrank/BoosterAI/'
 MAX_INDEX=profile.MAX_INDEX_BYTES
 MAX_METADATA=MAX_INDEX
 MAX_CODE=profile.MAX_CODE_BYTES
@@ -129,7 +131,7 @@ def verify_snapshot(work,commit):
     directory=safe(work,'snapshots/'+commit)
     meta = _read_metadata_json(safe(directory, 'snapshot.json'), 'snapshot metadata too large')
     require(isinstance(meta,dict),'snapshot metadata must be an object')
-    require(meta.get('commit')==commit and meta.get('repository')==REPOSITORY,'snapshot origin mismatch')
+    require(meta.get('commit')==commit and meta.get('repository') in LOCAL_REPOSITORIES,'snapshot origin mismatch')
     raw = _read_snapshot_bytes(safe(directory, 'index.json'), MAX_INDEX, MAX_TOTAL, 'index too large')
     require(digest(raw)==meta.get('index_sha256'),'local manifest modified')
     data=validate_manifest(raw)
@@ -376,6 +378,14 @@ def pointer_failure(work,reason,status,before_active,before_previous,desired_act
             'incomplete_stage':None,'downloaded_code_executed':False}
 
 
+def active_commit(active):
+    """Read the active commit ID from current or legacy local pointer metadata."""
+    require(isinstance(active,dict),'active pointer must be an object')
+    require(active.get('repository', REPOSITORY) in LOCAL_REPOSITORIES,
+            'active pointer repository mismatch')
+    return active['commit']
+
+
 def sync(repository,force=False,fetch=remote_get,now=None,scratch=None):
     """Refresh one project's pinned snapshot under the compatibility and scratch locks."""
     work=storage(repository)
@@ -387,9 +397,9 @@ def sync(repository,force=False,fetch=remote_get,now=None,scratch=None):
         before_active=read_pointer(work,'active.json');before_previous=read_pointer(work,'previous.json')
         old=json.loads(before_active) if before_active is not None else None
         if before_active is not None:
-            require(isinstance(old,dict),'active pointer must be an object')
-            verify_snapshot(work,old['commit'])
-        if old and not force and old.get('checked_utc_date')==timestamp.date().isoformat():
+            verify_snapshot(work,active_commit(old))
+        if (old and old.get('repository')==REPOSITORY and not force
+                and old.get('checked_utc_date')==timestamp.date().isoformat()):
             return {'status':'ALREADY_CHECKED_TODAY','commit':old['commit'],'downloaded_code_executed':False}
         commit_data=json.loads(fetch(COMMIT_URL,MAX_INDEX));require(isinstance(commit_data,dict),'commit response must be an object');commit=commit_data.get('sha')
         require(isinstance(commit,str) and re.fullmatch(r'[0-9a-f]{40}',commit),'invalid main commit response')
@@ -427,9 +437,7 @@ def search(repository,query='',category=None,tag=None):
     """Read and filter an existing snapshot without creating archive storage."""
     work = storage(repository, create=False)
     active = _read_metadata_json(safe(work, 'active.json'), 'active pointer too large')
-    require(isinstance(active,dict),'active pointer must be an object')
-    require(active.get('repository', REPOSITORY) == REPOSITORY, 'active pointer repository mismatch')
-    data=verify_snapshot(work,active['commit']);results=[];related_by_record={}
+    data=verify_snapshot(work,active_commit(active));results=[];related_by_record={}
     for entry in data['entries']:
         aliases=entry.get('categoryAliases',[])
         text=' '.join([entry['name'],entry['title'],*entry['categories'],*aliases,*entry['tags']]).lower()
@@ -461,7 +469,7 @@ def rollback(repository,commit,scratch=None):
         verify_snapshot(work,commit)
         before_active=read_pointer(work,'active.json');before_previous=read_pointer(work,'previous.json')
         require(before_active is not None,'active pointer missing')
-        old=json.loads(before_active);require(isinstance(old,dict),'active pointer must be an object');verify_snapshot(work,old['commit'])
+        old=json.loads(before_active);verify_snapshot(work,active_commit(old))
         if old['commit']==commit:return {'status':'UNCHANGED','commit':commit,'deleted_snapshots':0}
         next_active={'commit':commit,'repository':REPOSITORY,'rollback':True,'rollback_commit':old['commit']}
         desired_active=pointer_content(next_active);desired_previous=pointer_content(old)

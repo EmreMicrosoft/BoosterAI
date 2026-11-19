@@ -21,7 +21,7 @@ authorized consuming project.
 Before using the packaged runtime, verify its reviewed manifest and the canonical
 skill package. Substitute the actual plugin and runtime paths in these examples.
 
-    py -3.12 -I -S -B "<PLUGIN_ROOT>/verify_runtime_a84e3f19.py" --expected-manifest-sha256 ab2e3c1232a0dfa77467a7d9c7219d8c9d85cc7f467538629ed884abbee0adc9
+    py -3.12 -I -S -B "<PLUGIN_ROOT>/verify_runtime_a84e3f19.py" --expected-manifest-sha256 820beba04f785e0e21243018aa7899ba0fa8cdc4d862d82b6f68b9f27d784b3b
     py -3.12 -I -S -B "<RUNTIME>/scripts/booster.py" self-check
 
 The runtime manifest pin identifies this packaged version and records its
@@ -43,8 +43,8 @@ retry a refused operation or treat an incomplete comparison as a match.
 A valid manifest and self-check show package consistency. They do not prove host
 skill discovery, installation freshness, or product acceptance.
 
-Runtime 0.2.3 includes the published Unicode control label and duplicate JSON
-field fixes. Complete the reviewed package integrity check and scanner
+Runtime 0.2.4 adds the QuillCrank repository namespace and retains the
+published Unicode control label and duplicate JSON field fixes. Complete the reviewed package integrity check and scanner
 acceptance before using its scanner for publication review.
 
 Use the bundled harness with an explicit project root and a complete source plan
