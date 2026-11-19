@@ -393,20 +393,24 @@ def plain_link_targets(text, target_pattern):
     Backtick spans may cross soft line breaks up to a recognized block start.
     Indented code at the start, after a blank, or after a completed top-level
     ATX heading, thematic break, fence or standalone comment is opaque.
+    Also recognize a single letter-leading Setext title at a known block start.
     Leave possible list content and paragraph continuations visible.
     The source profile does not normalize Markdown container prefixes.
     """
     atx_start = r'\#{1,6}(?=[ \t]|\r?$)'
     thematic_line = r'(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})'
-    separator_line = rf'(?:{thematic_line}|(?:=+|-+)[ \t]*)(?=\r?$)'
+    setext_line = r'(?:=+|-+)[ \t]*'
+    separator_line = rf'(?:{thematic_line}|{setext_line})(?=\r?$)'
     fence_line = r'(?:`{3,}[^`\r\n]*|~{3,}[^\r\n]*)(?=\r?$)'
-    def compile_markup(indented_code):
+    def compile_markup(block_start):
         return re.compile(
             rf"""
         ^[ ]{{0,3}}{atx_start}(?P<heading_text>[^\r\n]*)
+        | {block_start}[ ]{{0,3}}(?P<setext_text>[^\W\d_][^\r\n]*)
+            \r?\n[ ]{{0,3}}{setext_line}(?=\r?$)
         | (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
-            (?P<indented_code>(?:\A|^[ \t]*\r?\n){indented_code})
+            (?P<indented_code>{block_start}{indented_code})
             | (?P<separator>^[ ]{{0,3}}{separator_line})
             | ^[ ]{{0,3}}  # A fence must start on its own source line.
             (?P<fence>(?P<backtick_fence>`{{3,}})|~{{3,}})
@@ -444,7 +448,7 @@ def plain_link_targets(text, target_pattern):
 
     indented_line = r'(?:[ ]{4}|[ ]{0,3}\t)[ \t]*[^ \t\r\n][^\r\n]*'
     indented_code = rf'{indented_line}(?:\r?\n(?:[ \t]*\r?\n)*{indented_line})*'
-    top_level_markup = compile_markup(indented_code)
+    top_level_markup = compile_markup(r'(?:\A|^[ \t]*\r?\n)')
     list_markup = compile_markup(r'(?!)')
     # A closing fence consumes its newline. Other blocks must end on their line.
     adjacent_code = re.compile(rf'(?:(?<=\n)|[ \t]*\r?\n){indented_code}')
@@ -479,10 +483,16 @@ def plain_link_targets(text, target_pattern):
             markup = list_markup
             continue
         if token.group('dedented') is not None:
-            markup = top_level_markup
+            if markup is list_markup:
+                # Reconsider the blank as a block start outside the list.
+                markup = top_level_markup
+                position = token.start()
             continue
+        heading_start, heading_end = token.span('heading_text')
+        if heading_start < 0:
+            heading_start, heading_end = token.span('setext_text')
         completed_block = (
-            token.group('heading_text') is not None
+            heading_start >= 0
             or token.group('fence') is not None
             or token.group('block_comment') is not None
             or (token.group('separator') is not None
@@ -491,15 +501,15 @@ def plain_link_targets(text, target_pattern):
         if completed_block and text[token.start()] not in ' \t':
             # Only a definite column-zero block ends a possible list continuation.
             markup = top_level_markup
-        if token.group('heading_text') is None:
+        if heading_start < 0:
             append_opaque(token)
         else:
             # Scan heading inline content in isolation and close labels on both sides.
             spans.extend((text[start:token.start()], block_break))
-            start = token.start('heading_text')
-            for inline in markup.finditer(text, start, token.end()):
+            start = heading_start
+            for inline in markup.finditer(text, start, heading_end):
                 append_opaque(inline)
-            spans.extend((text[start:token.end()], block_break))
+            spans.extend((text[start:heading_end], block_break))
             start = token.end()
         if completed_block and markup is top_level_markup:
             code = adjacent_code.match(text, position)

@@ -707,6 +707,73 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                     )
 
 
+    def test_indented_code_after_single_line_setext_headings_is_opaque(self):
+        """Only a supported Setext heading starts adjacent indented code."""
+        bundled_target = 'references/operating-algorithm.md'
+        routes = (
+            (ROOT / 'SKILL.md', bundled_target, 'no bundled references',
+             f'duplicate bundled resource: {bundled_target}'),
+            (ROOT / '.agents/skills/booster-ai/SKILL.md', '../../../SKILL.md',
+             'Codex registration is missing its canonical skill link',
+             'Codex registration repeats its canonical skill link'),
+        )
+        headings = (
+            ('equals at start', (), 'Title', '==='),
+            ('short dash at start', (), 'Title', '-'),
+            ('indented title and underline', (), '   Title', '   -- \t'),
+            ('after a blank line', ('Introduction.', ' \t'), '  Title', ' == \t'),
+            ('after a definite list dedent', ('- Item.', ''), 'Title', '--'),
+        )
+        paragraph_prefixes = (
+            ('lone equals', ('===',)),
+            ('lone short dash', ('--',)),
+            ('separator after a blank line', ('Introduction.', '', '===')),
+            ('separator after an ATX heading', ('# Title', '--')),
+            ('separator after a fence', ('```', 'Title', '```', '===')),
+            ('separator after a comment', ('<!-- Note -->', '--')),
+            ('separator after a multiline comment', ('<!--', '', 'Title -->', '===')),
+            ('list heading', ('- Item.', '  Title', '  --')),
+            ('list heading after a blank line', ('- Item.', '', '  Title', '  ===')),
+            ('ordinary paragraph', ('Title',)),
+            ('underline with trailing text', ('Title', '== text')),
+            ('underline with mixed markers', ('Title', '=-=')),
+        )
+        for document, target, missing_error, duplicate_error in routes:
+            frontmatter = document.read_text(encoding='utf-8').split('---\n', 2)[1]
+            header = f'---\n{frontmatter}---\n'
+            link = f'[Guide]({target})'
+            visible = self._check_with_text(document, header + link)
+            self.assertEqual(visible[0], 0)
+            missing = (1, {'error': missing_error})
+            duplicate = (1, {'error': duplicate_error})
+
+            for newline in ('\n', '\r\n'):
+                for case, prefix, title, underline in headings:
+                    for indent in ('    ', '\t', '  \t'):
+                        code = indent + link
+                        cases = (
+                            ('code only', (*prefix, title, underline, code), missing),
+                            ('visible after code', (*prefix, title, underline, code, link), visible),
+                            ('visible in title', (*prefix, f'{title} `{link}` {link}', underline, code), visible),
+                            ('genuine duplicate', (*prefix, f'{title} {link}', underline, code, link), duplicate),
+                        )
+                        for location, lines, expected in cases:
+                            with self.subTest(target=target, newline=newline, case=case, indent=indent,
+                                              location=location):
+                                self.assertEqual(
+                                    self._check_with_text(document, header + newline.join(lines)),
+                                    expected,
+                                )
+
+                for case, prefix in paragraph_prefixes:
+                    with self.subTest(target=target, newline=newline, case=case):
+                        lines = (*prefix, '    ' + link)
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join(lines)),
+                            visible,
+                        )
+
+
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
 
