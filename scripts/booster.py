@@ -387,39 +387,45 @@ def plain_link_targets(text, target_pattern):
     """Collect complete plain inline links with visible, balanced label brackets.
 
     Treat inline markup as opaque label content and keep it out of destinations.
-    Labels cannot cross blank lines, ATX headings, fences or block comments.
+    Blank lines, ATX headings, thematic breaks, Setext underlines, fences and
+    block comments bound supported link labels.
     Apply the caller-specific path pattern after recognizing a supported link.
     Backtick spans may cross soft line breaks up to a recognized block start.
     The source profile does not normalize Markdown container prefixes.
     """
+    atx_start = r'\#{1,6}(?=[ \t]|\r?$)'
+    separator_line = (
+        r'(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,}'
+        r'|(?:=+|-+)[ \t]*)(?=\r?$)'
+    )
     markup = re.compile(
-        r"""
-        ^[ ]{0,3}\#{1,6}(?=[ \t]|\r?$)(?P<heading_text>[^\r\n]*)
+        rf"""
+        ^[ ]{{0,3}}{atx_start}(?P<heading_text>[^\r\n]*)
         | (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
-            ^[ ]{0,3}  # A fence must start on its own source line.
-            (?P<fence>(?P<backtick_fence>`{3,})|~{3,})
+            (?P<separator>^[ ]{{0,3}}{separator_line})
+            | ^[ ]{{0,3}}  # A fence must start on its own source line.
+            (?P<fence>(?P<backtick_fence>`{{3,}})|~{{3,}})
             (?(backtick_fence)[^`\r\n]*|[^\r\n]*)  # Only tildes allow backticks in fence info.
             (?:\r?\n|\Z)
-            .*?(?:^[ ]{0,3}(?P=fence)(?(backtick_fence)`*|~*)[ \t]*(?:\r?\n|\Z)|\Z)
+            .*?(?:^[ ]{{0,3}}(?P=fence)(?(backtick_fence)`*|~*)[ \t]*(?:\r?\n|\Z)|\Z)
             | (?P<ticks>`+)(?!`)
             (?:
                 [^\r\n]
                 | \r?\n(?!  # Leave following blank lines and recognized blocks visible.
                     [ \t]*(?:\r?\n|\Z)
-                    | [ ]{0,3}(?:
-                        <!-- | > | \#{1,6}(?=[ \t]|\r?$)
+                    | [ ]{{0,3}}(?:
+                        <!-- | > | {atx_start}
                         | (?:[-+*]|1[.)])[ \t]+(?=\S)
-                        | (?P<rule>[-*_])(?:[ \t]*(?P=rule)){2,}[ \t]*(?=\r?$)
-                        | (?:=+|-+)[ \t]*(?=\r?$)
-                        | (?:`{3,}[^`\r\n]*|~{3,}[^\r\n]*)(?=\r?$)
+                        | {separator_line}
+                        | (?:`{{3,}}[^`\r\n]*|~{{3,}}[^\r\n]*)(?=\r?$)
                     )
                 )
             )*?
             (?<!`)(?P=ticks)(?!`)
-            | (?P<block_comment>^[ ]{0,3})<!--.*?(?:-->|\Z)
-            | <!--  # An inline comment cannot span a following ATX heading.
-            (?:[^\r\n]|\r?\n(?![ ]{0,3}\#{1,6}(?=[ \t]|\r?$)))*?
+            | (?P<block_comment>^[ ]{{0,3}})<!--.*?(?:-->|\Z)
+            | <!--  # Leave a following heading or separator visible.
+            (?:[^\r\n]|\r?\n(?![ ]{{0,3}}(?:{atx_start}|{separator_line})))*?
             (?:-->|\Z)
         )
         | `+  # An unmatched run remains ordinary text.
@@ -438,7 +444,8 @@ def plain_link_targets(text, target_pattern):
         if token.group('skip') is None and (escape is None or escape[-1] not in '[]!'):
             return
         spans.append(text[start:token.start()])
-        if (token.group('fence') is not None or token.group('block_comment') is not None
+        if (token.group('separator') is not None or token.group('fence') is not None
+                or token.group('block_comment') is not None
                 or re.search(paragraph_break, token.group())):
             spans.append(block_break)
         else:

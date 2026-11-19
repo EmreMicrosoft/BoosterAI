@@ -455,6 +455,62 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                     with self.subTest(target=target, newline=newline, case=case):
                         self.assertEqual(check(newline.join(lines)), expected)
 
+    def test_inline_route_labels_stay_within_thematic_and_setext_boundaries(self):
+        bundled_target = 'references/operating-algorithm.md'
+        routes = (
+            (
+                self._check_bundled_body,
+                bundled_target,
+                'no bundled references',
+                f'duplicate bundled resource: {bundled_target}',
+            ),
+            (
+                self._check_registration_body,
+                '../../../SKILL.md',
+                'Codex registration is missing its canonical skill link',
+                'Codex registration repeats its canonical skill link',
+            ),
+        )
+        for check, target, missing_error, duplicate_error in routes:
+            visible = f'[Guide]({target})'
+            expected = check(visible)
+            self.assertEqual(expected[0], 0)
+            suffix = f'continues]({target})'
+            invalid_routes = (
+                ('asterisk rule', ('[Paragraph', '***', suffix)),
+                ('indented underscore rule', ('[Paragraph', '   _ _ _\t', suffix)),
+                ('spaced dash rule', ('[Paragraph', '- - -', suffix)),
+                ('dash underline', ('[Heading', 'more heading text', '---', suffix)),
+                ('short dash underline', ('[Heading', '--', suffix)),
+                ('equals underline', ('[Heading', 'more heading text', '===', suffix)),
+                ('inline comment crosses rule', ('[Paragraph <!-- note', '***', f'--> {suffix}')),
+                ('inline comment crosses underline', ('[Heading <!-- note', '===', f'--> {suffix}')),
+                ('block comment contains rule', ('<!-- note', '***', visible, '-->')),
+                ('fence contains rule', ('```markdown', '- - -', visible, '```')),
+            )
+            dash_heading = ('Heading [Guide', suffix, '---')
+            valid_routes = (
+                ('multiline dash heading', dash_heading),
+                ('multiline equals heading', ('Heading [Guide', suffix, '===')),
+                ('paragraph soft break', ('[Paragraph', suffix)),
+                ('inline markers', ('[Paragraph *** _ _ _ - - -', suffix)),
+                ('mixed marker line', ('[Paragraph', '*_-*_-', suffix)),
+                ('marker prefix with text', ('[Paragraph', '*** text', suffix)),
+            )
+            for newline in ('\n', '\r\n'):
+                for case, lines in invalid_routes:
+                    with self.subTest(target=target, newline=newline, case=case, visible_link=False):
+                        self.assertEqual(check(newline.join(lines)), (1, {'error': missing_error}))
+                    with self.subTest(target=target, newline=newline, case=case, visible_link=True):
+                        self.assertEqual(check(newline.join((*lines, visible))), expected)
+                for case, lines in valid_routes:
+                    with self.subTest(target=target, newline=newline, case=case):
+                        self.assertEqual(check(newline.join(lines)), expected)
+                with self.subTest(target=target, newline=newline, case='genuine duplicate'):
+                    self.assertEqual(
+                        check(newline.join((*dash_heading, visible))), (1, {'error': duplicate_error}),
+                    )
+
 
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
