@@ -295,7 +295,8 @@ def start(root, source, identifier, test, case, attempts, timeout, max_elapsed=3
         _require(not data['stopped'], 'project harness is stopped')
         _refresh(root, data, cards)
         _require(identifier in cards and identifier not in data['tasks'], 'unknown or already registered task')
-        _require(not any(item.get('status') in _ACTIVE for item in data['tasks'].values()),
+        _require(not any(item.get('status') in _ACTIVE | {'STOP_REQUESTED'}
+                         for item in data['tasks'].values()),
                  'another task is active or ambiguous')
         card = cards[identifier]
         _require(all(_fresh(root, data['tasks'], cards, dep) for dep in card['depends_on']),
