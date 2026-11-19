@@ -391,19 +391,25 @@ def plain_link_targets(text, target_pattern):
     block comments bound supported link labels.
     Apply the caller-specific path pattern after recognizing a supported link.
     Backtick spans may cross soft line breaks up to a recognized block start.
+    Indented code at the start or after a blank line is opaque outside possible
+    list content. Leave paragraph continuations available to the inline scan.
     The source profile does not normalize Markdown container prefixes.
     """
     atx_start = r'\#{1,6}(?=[ \t]|\r?$)'
-    separator_line = (
-        r'(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,}'
-        r'|(?:=+|-+)[ \t]*)(?=\r?$)'
-    )
-    markup = re.compile(
-        rf"""
+    thematic_line = r'(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})'
+    separator_line = rf'(?:{thematic_line}|(?:=+|-+)[ \t]*)(?=\r?$)'
+    fence_line = r'(?:`{3,}[^`\r\n]*|~{3,}[^\r\n]*)(?=\r?$)'
+    def compile_markup(indented_line):
+        return re.compile(
+            rf"""
         ^[ ]{{0,3}}{atx_start}(?P<heading_text>[^\r\n]*)
         | (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
-            (?P<separator>^[ ]{{0,3}}{separator_line})
+            (?P<indented_code>
+                (?:\A|^[ \t]*\r?\n){indented_line}
+                (?:\r?\n(?:[ \t]*\r?\n)*{indented_line})*
+            )
+            | (?P<separator>^[ ]{{0,3}}{separator_line})
             | ^[ ]{{0,3}}  # A fence must start on its own source line.
             (?P<fence>(?P<backtick_fence>`{{3,}})|~{{3,}})
             (?(backtick_fence)[^`\r\n]*|[^\r\n]*)  # Only tildes allow backticks in fence info.
@@ -418,20 +424,29 @@ def plain_link_targets(text, target_pattern):
                         <!-- | > | {atx_start}
                         | (?:[-+*]|1[.)])[ \t]+(?=\S)
                         | {separator_line}
-                        | (?:`{{3,}}[^`\r\n]*|~{{3,}}[^\r\n]*)(?=\r?$)
+                        | {fence_line}
                     )
                 )
             )*?
             (?<!`)(?P=ticks)(?!`)
             | (?P<block_comment>^[ ]{{0,3}})<!--.*?(?:-->|\Z)
-            | <!--  # Leave a following heading or separator visible.
-            (?:[^\r\n]|\r?\n(?![ ]{{0,3}}(?:{atx_start}|{separator_line})))*?
+            | <!--  # Inline comments cannot span a blank or a recognized block start.
+            (?:[^\r\n]|\r?\n(?!
+                [ \t]*\r?\n
+                | [ ]{{0,3}}(?:<!--|{atx_start}|{separator_line}|{fence_line})
+            ))*?
             (?:-->|\Z)
         )
+        | (?P<list_marker>^[ ]{{0,3}}(?:[-+*]|[0-9]{{1,9}}[.)])(?=[ \t]|\r?$))
+        | (?P<dedented>^[ \t]*\r?\n(?=[^ \t\r\n]))
         | `+  # An unmatched run remains ordinary text.
-        """,
-        flags=re.DOTALL | re.MULTILINE | re.VERBOSE,
-    )
+            """,
+            flags=re.DOTALL | re.MULTILINE | re.VERBOSE,
+        )
+
+    indented_line = r'(?:[ ]{4}|[ ]{0,3}\t)[ \t]*[^ \t\r\n][^\r\n]*'
+    top_level_markup = compile_markup(indented_line)
+    list_markup = compile_markup(r'(?!)')
 
     spans = []
     start = 0
@@ -444,7 +459,8 @@ def plain_link_targets(text, target_pattern):
         if token.group('skip') is None and (escape is None or escape[-1] not in '[]!'):
             return
         spans.append(text[start:token.start()])
-        if (token.group('separator') is not None or token.group('fence') is not None
+        if (token.group('indented_code') is not None or token.group('separator') is not None
+                or token.group('fence') is not None
                 or token.group('block_comment') is not None
                 or re.search(paragraph_break, token.group())):
             spans.append(block_break)
@@ -453,7 +469,26 @@ def plain_link_targets(text, target_pattern):
             spans.append('\0')
         start = token.end()
 
-    for token in markup.finditer(text):
+    markup = top_level_markup
+    position = 0
+    while (token := markup.search(text, position)) is not None:
+        position = token.end()
+        if token.group('list_marker') is not None:
+            # Keep possible list continuations visible until a definite dedent.
+            markup = list_markup
+            continue
+        if token.group('dedented') is not None:
+            markup = top_level_markup
+            continue
+        if text[token.start()] not in ' \t' and (
+            token.group('heading_text') is not None
+            or token.group('fence') is not None
+            or token.group('block_comment') is not None
+            or (token.group('separator') is not None
+                and re.fullmatch(thematic_line, token.group('separator')))
+        ):
+            # Only a definite column-zero block ends a possible list continuation.
+            markup = top_level_markup
         if token.group('heading_text') is None:
             append_opaque(token)
             continue

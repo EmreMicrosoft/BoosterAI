@@ -528,6 +528,111 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                         check(newline.join((*dash_heading, visible))), (1, {'error': duplicate_error}),
                     )
 
+    def test_indented_top_level_code_cannot_supply_or_duplicate_routes(self):
+        bundled_target = 'references/operating-algorithm.md'
+        routes = (
+            (
+                ROOT / 'SKILL.md',
+                bundled_target,
+                'no bundled references',
+                f'duplicate bundled resource: {bundled_target}',
+            ),
+            (
+                ROOT / '.agents/skills/booster-ai/SKILL.md',
+                '../../../SKILL.md',
+                'Codex registration is missing its canonical skill link',
+                'Codex registration repeats its canonical skill link',
+            ),
+        )
+        for document, target, missing_error, duplicate_error in routes:
+            frontmatter = document.read_text(encoding='utf-8').split('---\n', 2)[1]
+            header = f'---\n{frontmatter}---\n'
+            link = f'[Guide]({target})'
+            expected = self._check_with_text(document, header + link)
+            self.assertEqual(expected[0], 0)
+            hidden_routes = (
+                ('leading spaces', (f'    {link}',)),
+                ('leading tab', (f'\t{link}',)),
+                ('leading mixed indentation', (f'  \t{link}',)),
+                ('after a blank line', ('Introduction.', ' \t', f'    {link}')),
+                ('indented chunks', (f'    {link}', '', f'\t{link}', ' \t', f' \t{link}')),
+                ('literal comment opener', ('    <!--', f'    {link}')),
+                ('literal opening bracket', ('    [Example', f'caption]({target})')),
+                ('after a definite list dedent', (
+                    '- List item.',
+                    '',
+                    'Top-level paragraph.',
+                    '',
+                    f'    {link}',
+                )),
+                ('after a top-level heading', ('- List item.', '# Outside', '', f'    {link}')),
+                ('after a top-level fence', (
+                    '- List item.', '```', 'Example.', '```', '', f'    {link}',
+                )),
+                ('after a top-level block comment', (
+                    '- List item.', '<!-- Example -->', '', f'    {link}',
+                )),
+                ('after a top-level thematic break', ('- List item.', '***', '', f'    {link}')),
+                ('unclosed inline comment before a list dedent', (
+                    '- List item <!-- open', ' \t', 'Top-level paragraph.', '', f'    {link}',
+                )),
+                ('unclosed inline comment before a top-level fence', (
+                    '- List item <!-- open', '```markdown', link, '```', '', f'    {link}',
+                )),
+                ('unclosed inline comment before a top-level block comment', (
+                    '- List item <!-- open', '<!--', link, '-->', '', f'    {link}',
+                )),
+                ('closed multiline inline comment', (
+                    '- List item <!-- open', f'  {link}', '  -->',
+                )),
+                ('block comment across blank lines and block starters', (
+                    '<!--', '', '# Heading', '```', link, '```', '', f'    {link}', '-->',
+                )),
+                ('block comment', ('<!--', '', f'    {link}', '-->')),
+                ('fenced example', ('```markdown', '', '    <!--', f'    {link}', '```')),
+            )
+            visible_routes = (
+                ('hanging spaces', ('Paragraph text.', f'    {link}')),
+                ('hanging tab', ('Paragraph text.', f'\t{link}')),
+                ('label in a hanging continuation', ('[Guide', f'    caption]({target})')),
+                ('bullet continuation', ('- List item.', '', f'    {link}')),
+                ('numbered continuation', ('1. List item.', '', f'    {link}')),
+                ('after a list item heading', ('- List item.', '  # Inside', '', f'    {link}')),
+                ('after a list item fence', (
+                    '- List item.', '  ```', '  Example.', '  ```', '', f'    {link}',
+                )),
+                ('after a list item block comment', (
+                    '- List item.', '  <!-- Example -->', '', f'    {link}',
+                )),
+                ('after a list item thematic break', ('- List item.', '  ***', '', f'    {link}')),
+                ('after a possible equals underline', ('- List item.', '=', '', f'    {link}')),
+                ('after a possible dash underline', ('- List item.', '--', '', f'    {link}')),
+                ('three spaces after a blank line', ('Introduction.', '', f'   {link}')),
+            )
+            for newline in ('\n', '\r\n'):
+                for case, lines in hidden_routes:
+                    with self.subTest(target=target, newline=newline, case=case, visible_link=False):
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join(lines)),
+                            (1, {'error': missing_error}),
+                        )
+                    with self.subTest(target=target, newline=newline, case=case, visible_link=True):
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join((*lines, link))),
+                            expected,
+                        )
+                for case, lines in visible_routes:
+                    with self.subTest(target=target, newline=newline, case=case):
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join(lines)),
+                            expected,
+                        )
+                with self.subTest(target=target, newline=newline, case='genuine duplicate'):
+                    self.assertEqual(
+                        self._check_with_text(document, header + newline.join((link, '', link))),
+                        (1, {'error': duplicate_error}),
+                    )
+
 
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
