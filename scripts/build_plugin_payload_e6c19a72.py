@@ -25,6 +25,8 @@ WINDOWS_NAMES = {"AUX", "CON", "NUL", "PRN"} | {
     f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(10)
 }
 ERROR = "invalid runtime build input\n"
+PLUGIN_REPOSITORIES = ('https://github.com/QuillCrank/BoosterAI',
+                       'https://github.com/EmreMicrosoft/BoosterAI')
 PLUGIN_MANIFEST = ".codex-plugin/plugin.json"
 WORKFLOW = "skills/booster-ai-workflow/SKILL.md"
 ENVELOPE_PATHS = {".gitattributes", PLUGIN_MANIFEST, "LICENSE",
@@ -72,11 +74,11 @@ def package_envelope(envelope, envelope_hash, recipe_hash):
     identity = {
         "name": "booster-ai",
         "license": "MIT",
-        "repository": "https://github.com/EmreMicrosoft/BoosterAI",
         "skills": "./skills/",
         "onboardingSkill": "./" + WORKFLOW,
     }
-    if not isinstance(plugin, dict) or any(plugin.get(k) != v for k, v in identity.items()):
+    if (not isinstance(plugin, dict) or plugin.get("repository") not in PLUGIN_REPOSITORIES
+            or any(plugin.get(k) != v for k, v in identity.items())):
         raise ValueError("invalid plugin identity")
     version = plugin.get("version")
     if (not isinstance(version, str)

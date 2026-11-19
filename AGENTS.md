@@ -1,7 +1,7 @@
 # BoosterAI maintenance
 
 - Work only on BoosterAI inside this repository's root. Do not inspect or change other projects, parent-workspace records, external skill folders or global configuration. Do not create external worktrees or use another working directory.
-- The only authorized GitHub repository is https://github.com/EmreMicrosoft/BoosterAI. Preserve the owner's established authorization to update its `main` branch; verify the remote commit after publishing.
+- The only authorized GitHub repository is https://github.com/QuillCrank/BoosterAI. Preserve the owner's established authorization to update its `main` branch; verify the remote commit after publishing.
 - Apply this repository's `SKILL.md` on every work turn. Read its bundled references as needed; do not introduce another skill or project dependency. Keep the current algorithm in `_boosterAI/algorithm.md` and the validation record in `VALIDATION.md`.
 - Keep every temporary file under `<repository-root>/_temp-files/`: test fixtures, command scripts, caches, downloads, staging and disposable output. This owner-selected path overrides the skill's default scratch location. Durable source, the algorithm and required evidence remain in their established repository locations.
 - Before commands that may create temporary files, set process-local `TEMP`, `TMP` and `TMPDIR` to a verified directory beneath `_temp-files`. Disable Python bytecode with `-B`; disable unnecessary tool caches or direct them there. Never change global environment variables. Do not run a tool that requires writing outside the allowed root.

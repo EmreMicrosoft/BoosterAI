@@ -8,12 +8,86 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout
 from unittest.mock import patch
 from repo_temp import workspace
 
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('archive_sync',ROOT/'scripts/archive_sync.py');s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
+
+class ArchiveOwnerMigrationTests(unittest.TestCase):
+    """Exercise namespace routing without contacting GitHub or writing snapshots."""
+
+    def test_local_pointer_and_snapshot_keep_verified_legacy_provenance(self):
+        commit = 'a' * 40
+        index = b'{"format":"boosterai-index-v1","entries":[]}'
+        for repository in ('https://github.com/EmreMicrosoft/BoosterAI',
+                           'https://github.com/QuillCrank/BoosterAI'):
+            with self.subTest(repository=repository):
+                pointer = {"commit": commit, "repository": repository}
+                self.assertEqual(s.active_commit(pointer), commit)
+                metadata = dict(pointer, index_sha256=s.digest(index))
+                with patch.object(s, '_read_metadata_json', return_value=metadata), \
+                        patch.object(s, '_read_snapshot_bytes', return_value=index):
+                    self.assertEqual(s.verify_snapshot(ROOT, commit)['entries'], [])
+        with self.assertRaisesRegex(ValueError, 'repository mismatch'):
+            s.active_commit({"commit": commit, "repository": "https://github.com/Other/BoosterAI"})
+        bad = {"commit": commit, "repository": "https://github.com/Other/BoosterAI"}
+        with patch.object(s, '_read_metadata_json', return_value=bad), \
+                patch.object(s, '_read_snapshot_bytes') as read:
+            with self.assertRaisesRegex(ValueError, 'origin mismatch'):
+                s.verify_snapshot(ROOT, commit)
+            read.assert_not_called()
+
+    def test_legacy_daily_check_does_not_suppress_current_upstream_lookup(self):
+        now = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+        current = 'https://github.com/QuillCrank/BoosterAI'
+        legacy = 'https://github.com/EmreMicrosoft/BoosterAI'
+        for repository in (legacy, current, None):
+            pointer = {'commit': 'a' * 40, 'checked_utc_date': now.date().isoformat()}
+            if repository is not None:
+                pointer['repository'] = repository
+            active = json.dumps(pointer).encode()
+            with self.subTest(repository=repository), \
+                    patch.object(s, 'storage', return_value=ROOT), \
+                    patch.object(s, 'sync_operation', return_value=nullcontext()), \
+                    patch.object(s, 'read_pointer', side_effect=lambda work, name:
+                                 active if name == 'active.json' else None), \
+                    patch.object(s, 'verify_snapshot'), \
+                    patch.object(s, 'atomic_json') as write:
+                fetch = unittest.mock.Mock(side_effect=OSError('offline test'))
+                result = s.sync(ROOT, fetch=fetch, now=now)
+                if repository == current:
+                    self.assertEqual(result['status'], 'ALREADY_CHECKED_TODAY')
+                    fetch.assert_not_called()
+                else:
+                    self.assertEqual(result['status'], 'SYNC_FAILED')
+                    self.assertTrue(result['active_pointer_preserved'])
+                    fetch.assert_called_once_with(s.COMMIT_URL, s.MAX_INDEX)
+                write.assert_not_called()
+
+    def test_only_current_owner_can_reach_archive_transport(self):
+        urls = (
+            'https://api.github.com/repos/EmreMicrosoft/BoosterAI/commits/main',
+            'https://raw.githubusercontent.com/EmreMicrosoft/BoosterAI/' + 'a' * 40 + '/solutions/index.json',
+            'https://api.github.com/repos/Other/BoosterAI/commits/main',
+        )
+        for url in urls:
+            with self.subTest(url=url), patch.object(s.urllib.request, 'build_opener') as transport:
+                with self.assertRaisesRegex(ValueError, 'unpinned/unapproved URL'):
+                    s.remote_get(url, 100)
+                transport.assert_not_called()
+        canonical = ('https://api.github.com/repos/QuillCrank/BoosterAI/commits/main',
+                     'https://raw.githubusercontent.com/QuillCrank/BoosterAI/' + 'a' * 40 + '/solutions/index.json')
+        for url in canonical:
+            with self.subTest(url=url), patch.object(s.urllib.request, 'build_opener') as transport:
+                response = transport.return_value.open.return_value.__enter__.return_value
+                response.status = 200
+                response.read.return_value = b'test'
+                self.assertEqual(s.remote_get(url, 100), b'test')
+                self.assertEqual(transport.return_value.open.call_args.args[0].full_url, url)
+                self.assertIsInstance(transport.call_args.args[0], s.NoRedirect)
+
 
 class ArchiveSyncTests(unittest.TestCase):
     def setUp(self):

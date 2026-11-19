@@ -43,3 +43,12 @@ For a third-party offer without a real authorized contributor, compatible GitHub
 Follow the [solution archive workflow](solution-archive.md#search-and-publication) to search the project-local index and the authorized common archive before selecting a genuinely new, unpublished local example. For a newly saved example, check its real standalone invocation and current, searchable project-index citation. For an already indexed candidate, verify the equivalent recorded acceptance. Review the exact source, test environment and result, MIT license, rights, privacy and security. Keep the accepted example `LOCAL_ONLY` until the source owner has explicitly authorized sharing the exact files and the required destination authority is in place.
 
 On an available authorized invocation, the release owner checks for eligible new local examples that have yet to be submitted. Check prior submissions for the UTC day and reconcile any uncertain earlier submission before sending. When eligible material remains and the exact files, current source-owner sharing consent, target, access and applicable action-time approvals are confirmed, submit one evaluation pull request within the approved scope, limited to one per UTC day. Apply the same diff review and remote readback to the local evaluation pull request.
+
+## Repository namespace migration
+
+The current evaluation target is QuillCrank/BoosterAI on main. Exact links
+using the previous EmreMicrosoft/BoosterAI namespace can still be reviewed
+as historical references. Resolve their source against the current repository
+identity before relying on it. A redirect or offline syntax check does not
+establish identity, consent, rights or authorization. Neither owner spelling
+counts as an outside contributor.

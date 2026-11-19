@@ -20,6 +20,32 @@ preflight = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(preflight)
 
 
+class ContributionOwnerMigrationTests(unittest.TestCase):
+    """Exercise the real offline gate against current and legacy URL forms."""
+
+    def test_legacy_links_do_not_keep_the_legacy_target_or_external_owner(self):
+        current = 'https://github.com/QuillCrank/BoosterAI'
+        legacy = 'https://github.com/EmreMicrosoft/BoosterAI'
+        review = dict.fromkeys(preflight.TEXT_FIELDS, 'synthetic test reference')
+        review.update(contributor='fixture-contributor', license='MIT',
+                      test_evidence='README.md', target_repository=current)
+        for repository in (legacy, current):
+            with self.subTest(source=repository):
+                result = preflight.evaluate(ROOT, dict(review, source_url=repository + '/issues/1'))
+                self.assertEqual(result['status'], 'MANUAL_AUTHORIZATION_AND_REVIEW_REQUIRED')
+                self.assertEqual(result['target_repository'], current)
+                self.assertFalse(result['network_accessed'])
+                self.assertFalse(result['pr_created'])
+        review['source_url'] = legacy + '/pull/3'
+        result = preflight.evaluate(ROOT, dict(review, target_repository=legacy,
+                                              contributor='eMrEmIcRoSoFt'))
+        self.assertEqual(result['invalid'], ['contributor', 'target_repository'])
+        result = preflight.evaluate(ROOT, dict(review, contributor='qUiLlCrAnK'))
+        self.assertEqual(result['invalid'], ['contributor'])
+        self.assertFalse(preflight.specific_source_url(
+            'https://github.com/Other/BoosterAI/issues/1'))
+
+
 class ContributionPreflightTests(unittest.TestCase):
     def setUp(self):
         self.directory = workspace(self)

@@ -193,6 +193,18 @@ class BuildPluginPayloadTests(unittest.TestCase):
             for path, content in expected.items():
                 self.assertEqual(archive.read(path), content)
 
+    def test_current_owner_is_accepted_for_the_reviewed_envelope(self):
+        """A new repository envelope keeps the exact plugin identity and bytes."""
+        envelope = self.draft_envelope()
+        metadata = json.loads(envelope[PLUGIN_METADATA_PATH])
+        metadata['repository'] = 'https://github.com/QuillCrank/BoosterAI'
+        envelope[PLUGIN_METADATA_PATH] = json.dumps(metadata, indent=2) + '\n'
+        result = self.run_builder(request_bytes(self.manifest, self.files, envelope),
+                                  PIN_OPTION, self.pin, ENVELOPE_PIN_OPTION, envelope_pin(envelope))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with ZipFile(BytesIO(result.stdout)) as archive:
+            self.assertEqual(archive.read(PLUGIN_METADATA_PATH), envelope[PLUGIN_METADATA_PATH].encode())
+
     def test_requires_one_matching_envelope_pin_only_for_draft(self):
         envelope = self.draft_envelope()
         recipe_arguments = (PIN_OPTION, self.pin)

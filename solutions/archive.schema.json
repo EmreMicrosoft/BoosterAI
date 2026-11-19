@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/EmreMicrosoft/BoosterAI/blob/main/solutions/archive.schema.json",
+  "$id": "https://github.com/QuillCrank/BoosterAI/blob/main/solutions/archive.schema.json",
   "title": "BoosterAI experience archive profile",
   "description": "A local profile inspired by Schema.org SoftwareSourceCode and CodeMeta; not a claim of full CodeMeta conformance.",
   "oneOf": [{"$ref": "#/$defs/indexV2"}, {"$ref": "#/$defs/indexV3"}],
@@ -56,7 +56,7 @@
         "description": {"type": "string", "minLength": 1, "maxLength": 1000},
         "programmingLanguage": {"type": "string", "minLength": 1, "maxLength": 80},
         "runtimePlatform": {"type": "string", "minLength": 1, "maxLength": 100},
-        "codeRepository": {"const": "https://github.com/EmreMicrosoft/BoosterAI"},
+        "codeRepository": {"enum": ["https://github.com/QuillCrank/BoosterAI", "https://github.com/EmreMicrosoft/BoosterAI"]},
         "codeSampleType": {"const": "full"},
         "license": {"const": "MIT"},
         "revision": {"type": "integer", "minimum": 1, "maximum": 9999},

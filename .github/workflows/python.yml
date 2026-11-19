@@ -37,6 +37,16 @@ jobs:
           import os, re, stat, subprocess, tempfile
           from pathlib import Path
 
+          repositories = {
+              'emremicrosoft/boosterai': 'EmreMicrosoft/BoosterAI',
+              'quillcrank/boosterai': 'QuillCrank/BoosterAI',
+          }
+          repository = repositories.get(os.environ.get('GITHUB_REPOSITORY', '').lower())
+          if repository is None or os.environ.get('GITHUB_REPOSITORY_ID') != '1458312440':
+              raise ValueError('unexpected BoosterAI repository identity')
+          revision = os.environ['GITHUB_SHA']
+          if re.fullmatch(r'[0-9a-f]{40}', revision) is None:
+              raise ValueError('invalid revision')
           root = Path(os.environ['GITHUB_WORKSPACE']).resolve()
           if not root.is_dir():
               raise ValueError('runner workspace is missing')
@@ -45,9 +55,6 @@ jobs:
           info = base.lstat()
           if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_file_attributes', 0) & 0x400 or base.resolve().parent != root:
               raise ValueError('unsafe temporary root')
-          revision = os.environ['GITHUB_SHA']
-          if re.fullmatch(r'[0-9a-f]{40}', revision) is None:
-              raise ValueError('invalid revision')
           with tempfile.TemporaryDirectory(prefix='ci-bootstrap-', dir=base) as operation:
               environment = dict(os.environ)
               environment.update({name: operation for name in ('TEMP', 'TMP', 'TMPDIR')})
@@ -55,7 +62,7 @@ jobs:
               environment['GIT_CONFIG_GLOBAL'] = str(Path(operation) / 'no-global-config')
               commands = [
                   ['git', 'init', '.'],
-                  ['git', 'remote', 'add', 'origin', 'https://github.com/EmreMicrosoft/BoosterAI.git'],
+                  ['git', 'remote', 'add', 'origin', f'https://github.com/{repository}.git'],
                   ['git', 'fetch', '--depth=1', '--no-tags', 'origin', revision],
                   ['git', 'checkout', '--detach', 'FETCH_HEAD'],
               ]

@@ -1,6 +1,12 @@
 # Daily public archive feedback
 
-The upstream is pinned to `https://github.com/EmreMicrosoft/BoosterAI`, branch `main`. The bundled updater first resolves main to a commit, then reads only that immutable commit's `solutions/index.json` and permitted source paths. It does not fetch arbitrary URLs, git hooks, credentials or whole repositories.
+The upstream is pinned to `https://github.com/QuillCrank/BoosterAI`, branch `main`. The bundled updater first resolves main to a commit, then reads only that immutable commit's `solutions/index.json` and permitted source paths. It does not fetch arbitrary URLs, git hooks, credentials or whole repositories.
+
+Previously saved snapshot and pointer provenance for the prior repository URL remains
+readable at the same commit and content hashes. New network reads use the current
+pinned URL only, and redirects are rejected. A same-day check recorded for the
+previous URL does not satisfy the first check of the current upstream. Existing
+snapshot provenance stays intact when its commit and bytes match.
 
 ## Invoke and search
 Load this workflow for the first available BoosterAI invocation each UTC day or when searching an existing snapshot. Run the daily `sync` on the first available invocation with authority for the upstream read, local staging and any pointer activation. Respect existing stage and activation refusals. Use `search` for a read-only lookup of the existing active snapshot.
