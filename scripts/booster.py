@@ -391,24 +391,22 @@ def plain_link_targets(text, target_pattern):
     block comments bound supported link labels.
     Apply the caller-specific path pattern after recognizing a supported link.
     Backtick spans may cross soft line breaks up to a recognized block start.
-    Indented code at the start or after a blank line is opaque outside possible
-    list content. Leave paragraph continuations available to the inline scan.
+    Indented code at the start, after a blank, or after a completed top-level
+    ATX heading, thematic break, fence or standalone comment is opaque.
+    Leave possible list content and paragraph continuations visible.
     The source profile does not normalize Markdown container prefixes.
     """
     atx_start = r'\#{1,6}(?=[ \t]|\r?$)'
     thematic_line = r'(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})'
     separator_line = rf'(?:{thematic_line}|(?:=+|-+)[ \t]*)(?=\r?$)'
     fence_line = r'(?:`{3,}[^`\r\n]*|~{3,}[^\r\n]*)(?=\r?$)'
-    def compile_markup(indented_line):
+    def compile_markup(indented_code):
         return re.compile(
             rf"""
         ^[ ]{{0,3}}{atx_start}(?P<heading_text>[^\r\n]*)
         | (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
-            (?P<indented_code>
-                (?:\A|^[ \t]*\r?\n){indented_line}
-                (?:\r?\n(?:[ \t]*\r?\n)*{indented_line})*
-            )
+            (?P<indented_code>(?:\A|^[ \t]*\r?\n){indented_code})
             | (?P<separator>^[ ]{{0,3}}{separator_line})
             | ^[ ]{{0,3}}  # A fence must start on its own source line.
             (?P<fence>(?P<backtick_fence>`{{3,}})|~{{3,}})
@@ -445,8 +443,11 @@ def plain_link_targets(text, target_pattern):
         )
 
     indented_line = r'(?:[ ]{4}|[ ]{0,3}\t)[ \t]*[^ \t\r\n][^\r\n]*'
-    top_level_markup = compile_markup(indented_line)
+    indented_code = rf'{indented_line}(?:\r?\n(?:[ \t]*\r?\n)*{indented_line})*'
+    top_level_markup = compile_markup(indented_code)
     list_markup = compile_markup(r'(?!)')
+    # A closing fence consumes its newline. Other blocks must end on their line.
+    adjacent_code = re.compile(rf'(?:(?<=\n)|[ \t]*\r?\n){indented_code}')
 
     spans = []
     start = 0
@@ -480,25 +481,30 @@ def plain_link_targets(text, target_pattern):
         if token.group('dedented') is not None:
             markup = top_level_markup
             continue
-        if text[token.start()] not in ' \t' and (
+        completed_block = (
             token.group('heading_text') is not None
             or token.group('fence') is not None
             or token.group('block_comment') is not None
             or (token.group('separator') is not None
-                and re.fullmatch(thematic_line, token.group('separator')))
-        ):
+                and re.fullmatch(thematic_line, token.group('separator').lstrip(' ')))
+        )
+        if completed_block and text[token.start()] not in ' \t':
             # Only a definite column-zero block ends a possible list continuation.
             markup = top_level_markup
         if token.group('heading_text') is None:
             append_opaque(token)
-            continue
-        # Scan heading inline content in isolation and close labels on both sides.
-        spans.extend((text[start:token.start()], block_break))
-        start = token.start('heading_text')
-        for inline in markup.finditer(text, start, token.end()):
-            append_opaque(inline)
-        spans.extend((text[start:token.end()], block_break))
-        start = token.end()
+        else:
+            # Scan heading inline content in isolation and close labels on both sides.
+            spans.extend((text[start:token.start()], block_break))
+            start = token.start('heading_text')
+            for inline in markup.finditer(text, start, token.end()):
+                append_opaque(inline)
+            spans.extend((text[start:token.end()], block_break))
+            start = token.end()
+        if completed_block and markup is top_level_markup:
+            code = adjacent_code.match(text, position)
+            if code is not None:
+                start = position = code.end()
     spans.append(text[start:])
     visible = ''.join(spans)
 

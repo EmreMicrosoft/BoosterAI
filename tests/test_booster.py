@@ -634,6 +634,79 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                     )
 
 
+    def test_indented_code_after_completed_top_level_blocks_is_opaque(self):
+        """A completed block permits adjacent code without ending a live paragraph."""
+        bundled_target = 'references/operating-algorithm.md'
+        routes = (
+            (ROOT / 'SKILL.md', bundled_target, 'no bundled references',
+             f'duplicate bundled resource: {bundled_target}'),
+            (ROOT / '.agents/skills/booster-ai/SKILL.md', '../../../SKILL.md',
+             'Codex registration is missing its canonical skill link',
+             'Codex registration repeats its canonical skill link'),
+        )
+        completed_blocks = (
+            ('ATX heading', ('# Heading',)),
+            ('indented ATX heading', ('   ## Heading',)),
+            ('thematic break', ('* * *',)),
+            ('dash thematic break', ('---',)),
+            ('asterisk break with one leading space', (' * * *',)),
+            ('underscore break with two leading spaces', ('  _ _ _',)),
+            ('dash break with three leading spaces', ('   - - -',)),
+            ('backtick fence', ('``` example', 'Example', '````')),
+            ('tilde fence', ('~~~', 'Example.', '~~~')),
+            ('single-line block comment', ('<!-- Example -->',)),
+            ('multiline block comment', ('<!--', 'Example', '--> \t')),
+            ('heading ends list', ('- List item.', '# Outside')),
+            ('comment ends list', ('- List item.', '<!-- Outside -->')),
+        )
+        for document, target, missing_error, duplicate_error in routes:
+            frontmatter = document.read_text(encoding='utf-8').split('---\n', 2)[1]
+            header = f'---\n{frontmatter}---\n'
+            link = f'[Guide]({target})'
+            expected = self._check_with_text(document, header + link)
+            self.assertEqual(expected[0], 0)
+            visible_prefixes = (
+                ('paragraph continuation', ('Paragraph.',)),
+                ('paragraph after a heading', ('# Heading', 'Paragraph.')),
+                ('paragraph after a fence', ('~~~', 'Example.', '~~~', 'Paragraph.')),
+                ('inline comment in paragraph', ('Paragraph <!-- inline -->',)),
+                ('heading inside a list', ('- List item.', '  # Inside')),
+                ('fence inside a list', ('- List item.', '  ~~~', '  Example.', '  ~~~')),
+                ('comment inside a list', ('- List item.', '  <!-- Example -->')),
+                ('thematic break inside a list', ('- List item.', '  ***')),
+                ('possible equals underline', ('==',)),
+                ('possible dash underline', ('--',)),
+            )
+            for newline in ('\n', '\r\n'):
+                for case, lines in completed_blocks:
+                    for indent in ('    ', '\t', '  \t'):
+                        body = (*lines, indent + link)
+                        with self.subTest(target=target, newline=newline, case=case, indent=indent,
+                                          visible_link=False):
+                            self.assertEqual(
+                                self._check_with_text(document, header + newline.join(body)),
+                                (1, {'error': missing_error}),
+                            )
+                        with self.subTest(target=target, newline=newline, case=case, indent=indent,
+                                          visible_link=True):
+                            self.assertEqual(
+                                self._check_with_text(document, header + newline.join((*body, link))),
+                                expected,
+                            )
+                for case, lines in visible_prefixes:
+                    with self.subTest(target=target, newline=newline, case=case):
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join((*lines, '    ' + link))),
+                            expected,
+                        )
+                with self.subTest(target=target, newline=newline, case='genuine duplicate'):
+                    lines = ('# Heading', '    example', link, '', link)
+                    self.assertEqual(
+                        self._check_with_text(document, header + newline.join(lines)),
+                        (1, {'error': duplicate_error}),
+                    )
+
+
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
 
