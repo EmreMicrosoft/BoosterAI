@@ -277,3 +277,11 @@ The published build-only assembler at source commit `e4137ae6e6fadc1d10efa95e74d
 Independent read-only inspection confirmed all 80 expected archive paths, all 74 runtime file hashes, all five outer file hashes, version 0.2.3 and the exact runtime manifest pin. Missing, extra, duplicate and mismatched entries each had a count of zero. All CRC checks passed.
 
 The same archive passed the English user-facing text and safeguards review, including Requirements 42 and 43. Unicode examples in tests were reviewed as synthetic inputs. Assembly acceptance and read-only integrity apply to the digest above. The representative bundled entry remains unverified.
+
+## BoosterAI 0.2.3 packaged helper check
+
+A representative bundled command was exercised on Windows and Python 3.12 from an isolated extraction of draft ZIP SHA-256 `5d87b537fcd697755c5885a1c83b1fd266ffdb7baba7e6e336d87f53c617f4c3`. The command used the extracted `runtime/scripts/project_tools.py` entry with `check-helper`.
+
+The lookup for an existing registered helper returned matching registry metadata and matching code and evidence hashes with exit 0. A malformed helper identity returned `{"error": "invalid helper identity"}` with exit 1. Both standard error streams were empty. Independent replay on the same extraction confirmed both results and the preserved registry fingerprints.
+
+This records representative bundled CLI acceptance for the pinned draft. Installed copy acceptance, marketplace release, discovery and native execution retain their separate criteria.
