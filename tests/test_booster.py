@@ -774,6 +774,83 @@ class SelfCheckDuplicateRoutingTests(unittest.TestCase):
                         )
 
 
+    def test_indented_code_after_setext_headings_adjacent_to_completed_blocks_is_opaque(self):
+        """A completed top-level block permits an adjacent single-line Setext heading."""
+        bundled_target = 'references/operating-algorithm.md'
+        routes = (
+            (ROOT / 'SKILL.md', bundled_target, 'no bundled references',
+             f'duplicate bundled resource: {bundled_target}'),
+            (ROOT / '.agents/skills/booster-ai/SKILL.md', '../../../SKILL.md',
+             'Codex registration is missing its canonical skill link',
+             'Codex registration repeats its canonical skill link'),
+        )
+        completed_blocks = (
+            ('ATX heading', ('# Previous',), 'Title', '=', '    '),
+            ('thematic break', ('  * * *',), '   Title', '   -- \t', '\t'),
+            ('backtick fence', ('``` text', 'Example', '```` \t'), ' Title', '==', '  \t'),
+            ('tilde fence', ('~~~', 'Example', '~~~~'), 'Title', ' --', '    '),
+            ('single-line comment', ('<!-- Previous --> \t',), '  Title', '===', '\t'),
+            ('multiline comment', ('<!--', 'Example', '--> \t'), 'Title', '-', '  \t'),
+            ('prior Setext heading', ('Previous', '==='), '   Title', '  --', '    '),
+            ('stacked Setext headings', ('# Previous', 'First', '=', 'Second', '--'),
+             'Third', '===', '\t'),
+            ('definite list exit', ('- Item.', '# Previous'), 'Title', '--', '  \t'),
+        )
+        visible_prefixes = (
+            ('lone equals after heading', ('# Previous', '===')),
+            ('lone dash after fence', ('~~~', 'Example', '~~~', '--')),
+            ('lone equals after comment', ('<!-- Previous -->', '==')),
+            ('ordinary paragraph', ('# Previous', 'Paragraph.')),
+            ('invalid underline', ('# Previous', 'Title', '- -')),
+            ('comment closing line is not a title', ('<!--', '', 'Previous -->', '===')),
+            ('possible list heading', ('- Item.', '  # Previous', '  Title', '  --')),
+            ('possible list after fence', ('- Item.', '  ~~~', '  Example', '  ~~~',
+                                          '  Title', '  ===')),
+        )
+        for document, target, missing_error, duplicate_error in routes:
+            frontmatter = document.read_text(encoding='utf-8').split('---\n', 2)[1]
+            header = f'---\n{frontmatter}---\n'
+            link = f'[Guide]({target})'
+            visible = self._check_with_text(document, header + link)
+            self.assertEqual(visible[0], 0)
+            missing = (1, {'error': missing_error})
+            duplicate = (1, {'error': duplicate_error})
+
+            for newline in ('\n', '\r\n'):
+                for case, prefix, title, underline, indent in completed_blocks:
+                    code = indent + link
+                    cases = (
+                        ('code only', (*prefix, title, underline, code), missing),
+                        ('visible afterward', (*prefix, title, underline, code, link), visible),
+                        ('visible in title', (*prefix, f'{title} `{link}` {link}', underline, code),
+                         visible),
+                        ('genuine duplicate', (*prefix, f'{title} {link}', underline, code, link),
+                         duplicate),
+                    )
+                    for location, lines, expected in cases:
+                        with self.subTest(target=target, newline=newline, case=case, location=location):
+                            self.assertEqual(
+                                self._check_with_text(document, header + newline.join(lines)),
+                                expected,
+                            )
+
+                for case, prefix in visible_prefixes:
+                    with self.subTest(target=target, newline=newline, case=case):
+                        lines = (*prefix, '    ' + link)
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join(lines)),
+                            visible,
+                        )
+
+                for opener in ('<!--', '``` example', '~~~'):
+                    with self.subTest(target=target, newline=newline, unclosed=opener):
+                        lines = (opener, 'Title ' + link, '===', '    ' + link)
+                        self.assertEqual(
+                            self._check_with_text(document, header + newline.join(lines)),
+                            missing,
+                        )
+
+
 class SelfCheckRootCliTests(unittest.TestCase):
     """Check root selection at the CLI boundary without a package fixture."""
 

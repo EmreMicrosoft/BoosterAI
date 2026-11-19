@@ -393,21 +393,22 @@ def plain_link_targets(text, target_pattern):
     Backtick spans may cross soft line breaks up to a recognized block start.
     Indented code at the start, after a blank, or after a completed top-level
     ATX heading, thematic break, fence or standalone comment is opaque.
-    Also recognize a single letter-leading Setext title at a known block start.
+    Recognize a single letter-leading Setext title at a known block start or
+    directly after a supported completed top-level block.
     Leave possible list content and paragraph continuations visible.
     The source profile does not normalize Markdown container prefixes.
     """
     atx_start = r'\#{1,6}(?=[ \t]|\r?$)'
     thematic_line = r'(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})'
     setext_line = r'(?:=+|-+)[ \t]*'
+    setext_heading = rf'[ ]{{0,3}}(?P<setext_text>[^\W\d_][^\r\n]*)\r?\n[ ]{{0,3}}{setext_line}(?=\r?$)'
     separator_line = rf'(?:{thematic_line}|{setext_line})(?=\r?$)'
     fence_line = r'(?:`{3,}[^`\r\n]*|~{3,}[^\r\n]*)(?=\r?$)'
     def compile_markup(block_start):
         return re.compile(
             rf"""
         ^[ ]{{0,3}}{atx_start}(?P<heading_text>[^\r\n]*)
-        | {block_start}[ ]{{0,3}}(?P<setext_text>[^\W\d_][^\r\n]*)
-            \r?\n[ ]{{0,3}}{setext_line}(?=\r?$)
+        | {block_start}{setext_heading}
         | (?P<escape>\\[\\`<\[\]!])  # Escaped punctuation cannot open markup.
         | (?P<skip>
             (?P<indented_code>{block_start}{indented_code})
@@ -451,7 +452,9 @@ def plain_link_targets(text, target_pattern):
     top_level_markup = compile_markup(r'(?:\A|^[ \t]*\r?\n)')
     list_markup = compile_markup(r'(?!)')
     # A closing fence consumes its newline. Other blocks must end on their line.
-    adjacent_code = re.compile(rf'(?:(?<=\n)|[ \t]*\r?\n){indented_code}')
+    after_block = r'(?:(?<=\n)|[ \t]*\r?\n)'
+    adjacent_code = re.compile(after_block + indented_code)
+    adjacent_setext = re.compile(after_block + setext_heading, re.MULTILINE)
 
     spans = []
     start = 0
@@ -472,6 +475,16 @@ def plain_link_targets(text, target_pattern):
         else:
             # Opaque content keeps label brackets apart from any destination.
             spans.append('\0')
+        start = token.end()
+
+    def append_heading(token, heading_start, heading_end):
+        """Scan a heading's inline content with label boundaries on both sides."""
+        nonlocal start
+        spans.extend((text[start:token.start()], block_break))
+        start = heading_start
+        for inline in markup.finditer(text, start, heading_end):
+            append_opaque(inline)
+        spans.extend((text[start:heading_end], block_break))
         start = token.end()
 
     markup = top_level_markup
@@ -504,14 +517,11 @@ def plain_link_targets(text, target_pattern):
         if heading_start < 0:
             append_opaque(token)
         else:
-            # Scan heading inline content in isolation and close labels on both sides.
-            spans.extend((text[start:token.start()], block_break))
-            start = heading_start
-            for inline in markup.finditer(text, start, heading_end):
-                append_opaque(inline)
-            spans.extend((text[start:heading_end], block_break))
-            start = token.end()
+            append_heading(token, heading_start, heading_end)
         if completed_block and markup is top_level_markup:
+            while (heading := adjacent_setext.match(text, position)) is not None:
+                append_heading(heading, *heading.span('setext_text'))
+                position = heading.end()
             code = adjacent_code.match(text, position)
             if code is not None:
                 start = position = code.end()
