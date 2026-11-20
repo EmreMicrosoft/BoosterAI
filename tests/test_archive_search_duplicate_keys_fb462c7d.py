@@ -52,17 +52,18 @@ class ArchiveSearchDuplicateKeysTest(unittest.TestCase):
                 validate_index.assert_not_called()
 
     def test_rejects_excessive_json_nesting_below_byte_limit(self):
-        nesting = 15000
-        payload = (
-            b'{"format":"boosterai-index-v1","entries":[],"sample":'
-            + b'[' * nesting + b'0' + b']' * nesting + b'}'
-        )
+        payload = b'{"format":"boosterai-index-v1","entries":[]}'
         limit = project_tools.profile.MAX_INDEX_BYTES
         self.assertLess(len(payload), limit)
-        with self.archive_index(payload) as (_, stream):
+        with (
+            self.archive_index(payload) as (_, stream),
+            patch.object(project_tools.json, 'loads', side_effect=RecursionError('parser detail')) as parse,
+        ):
             with self.assertRaisesRegex(ValueError, r'\Aarchive index JSON nesting is too deep\Z'):
                 project_tools.archive_search(VIRTUAL_ROOT)
             stream.read.assert_called_once_with(limit + 1)
+            parse.assert_called_once()
+            self.assertEqual(parse.call_args.args, (payload.decode('utf-8'),))
 
     def test_accepts_exact_byte_limit_with_multibyte_utf8(self):
         index = {'format': 'boosterai-index-v1', 'entries': [{'name': 'coffee', 'title': 'Caf\u00e9'}]}
