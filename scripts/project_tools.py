@@ -407,8 +407,11 @@ def archive_search(repository, query='', category=None, tag=None, include_relate
     with index.open('rb') as stream:
         raw = stream.read(limit + 1)
     require(len(raw) <= limit, 'archive index too large')
-    data = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_index_object,
-                      parse_constant=profile.reject_non_finite_number)
+    try:
+        data = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_index_object,
+                          parse_constant=profile.reject_non_finite_number)
+    except RecursionError:
+        raise ValueError('archive index JSON nesting is too deep') from None
     require(isinstance(data,dict) and isinstance(data.get('entries'),list),'invalid archive index')
     if data.get('format') in ('boosterai-index-v2','boosterai-index-v3'):profile.validate_index(data)
     else:require(data.get('format')=='boosterai-index-v1','unsupported archive index')
