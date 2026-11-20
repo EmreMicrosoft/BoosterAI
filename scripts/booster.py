@@ -379,9 +379,18 @@ def schema_status(root):
         raise ValueError('schema provenance record is missing') from None
     data = json.loads(text)
     require(isinstance(data, dict) and isinstance(data.get('source'), str), 'invalid provenance')
+    recorded_sha256 = data.get('source_sha256')
+    require(isinstance(recorded_sha256, str) and re.fullmatch(r'[0-9A-Fa-f]{64}', recorded_sha256) is not None,
+            'invalid provenance')
+    recorded_sha256 = recorded_sha256.lower()
     source = checked(root, data['source'])
     working = checked(root, '_boosterAI/algorithm.md')
-    return {'source': data['source'], 'source_changed': digest(source) != data.get('source_sha256'), 'working_copy_changed': digest(working) != data.get('source_sha256'), 'acceptance_verified': False}
+    return {
+        'source': data['source'],
+        'source_changed': digest(source) != recorded_sha256,
+        'working_copy_changed': digest(working) != recorded_sha256,
+        'acceptance_verified': False,
+    }
 
 def plain_link_targets(text, target_pattern):
     """Collect complete plain inline links with visible, balanced label brackets.

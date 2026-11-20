@@ -55,6 +55,36 @@ class SchemaStatusTest(unittest.TestCase):
         self.assertEqual(result, {'error': 'schema provenance record is missing'})
         self.assertEqual(reads, [(PROVENANCE, 'r')])
 
+    def test_invalid_captured_hash_stops_before_reading_either_schema(self):
+        invalid = (
+            {},
+            *({'source_sha256': value} for value in
+              (None, 32, '', 'a' * 63, 'a' * 65, 'g' * 64, ' ' + 'a' * 63)),
+        )
+        for fields in invalid:
+            with self.subTest(fields=fields):
+                provenance = json.dumps({'source': SOURCE, **fields}).encode('utf-8')
+                code, result, reads = self.invoke({PROVENANCE: provenance})
+                self.assertEqual(code, 1)
+                self.assertEqual(result, {'error': 'invalid provenance'})
+                self.assertEqual(reads, [(PROVENANCE, 'r')])
+
+    def test_uppercase_captured_hash_compares_the_same_bytes(self):
+        original = b'# Schema\r\n'
+        provenance = json.dumps({
+            'source': SOURCE,
+            'source_sha256': hashlib.sha256(original).hexdigest().upper(),
+        }).encode('utf-8')
+        code, result, reads = self.invoke({PROVENANCE: provenance, SOURCE: original, WORKING: original})
+        self.assertEqual(code, 0)
+        self.assertEqual(result, {
+            'source': SOURCE,
+            'source_changed': False,
+            'working_copy_changed': False,
+            'acceptance_verified': False,
+        })
+        self.assertEqual(reads, [(PROVENANCE, 'r'), (SOURCE, 'rb'), (WORKING, 'rb')])
+
     def test_source_and_working_copy_hashes_compare_raw_bytes_independently(self):
         original = b'# Schema\r\n'
         changed = b'# Schema\n'
